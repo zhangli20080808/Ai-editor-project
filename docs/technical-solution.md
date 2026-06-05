@@ -88,7 +88,7 @@ H5 展示端面向访客，负责消费已发布作品。
 - Vite
 - React 19
 - TypeScript
-- Ant Design 5
+- Ant Design 6
 - Zustand + Immer
 - TanStack Query
 
