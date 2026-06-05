@@ -7,7 +7,8 @@ export function LText(props: ComponentProps) {
         color: props.color as string,
         fontSize: Number(props.fontSize),
         fontWeight: props.fontWeight as string,
-        lineHeight: props.lineHeight as string,
+        fontFamily: props.fontFamily as string,
+        lineHeight: Number(props.lineHeight),
         textAlign: props.textAlign as 'left' | 'center' | 'right',
       }}
     >

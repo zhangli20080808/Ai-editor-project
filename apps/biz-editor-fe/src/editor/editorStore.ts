@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import type {
   ComponentData,
+  ComponentEventAction,
   ComponentTemplate,
   ComponentProps,
 } from './types'
@@ -13,6 +14,11 @@ interface EditorState {
   removeComponent: (id: string) => void
   selectComponent: (id: string | null) => void
   updateComponent: (id: string, propKey: string, value: unknown) => void
+  updateClickEvent: (
+    id: string,
+    eventType: ComponentEventAction['type'],
+    value: string,
+  ) => void
 }
 
 export const useEditorStore = create<EditorState>()(
@@ -29,11 +35,17 @@ export const useEditorStore = create<EditorState>()(
           top: template.props.top + offset,
         }
 
-        state.components.push({
+        const nextComponent: ComponentData = {
           id,
           name: template.name,
           props,
-        })
+        }
+
+        if (template.events) {
+          nextComponent.events = template.events
+        }
+
+        state.components.push(nextComponent)
         state.currentElement = id
       })
     },
@@ -57,6 +69,39 @@ export const useEditorStore = create<EditorState>()(
         const component = state.components.find((item) => item.id === id)
         if (component) {
           component.props[propKey] = value
+        }
+      })
+    },
+    updateClickEvent: (id, eventType, value) => {
+      set((state) => {
+        const component = state.components.find((item) => item.id === id)
+        if (!component) {
+          return
+        }
+
+        const actions = component.events?.click ?? []
+        const nextActions = actions.filter((action) => action.type !== eventType)
+
+        if (value.trim()) {
+          if (eventType === 'track') {
+            nextActions.push({
+              type: 'track',
+              eventName: value.trim(),
+            })
+          } else {
+            nextActions.push({
+              type: 'link',
+              url: value.trim(),
+            })
+          }
+        }
+
+        if (nextActions.length) {
+          component.events = {
+            click: nextActions,
+          }
+        } else {
+          delete component.events
         }
       })
     },

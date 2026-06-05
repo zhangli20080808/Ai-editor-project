@@ -6,6 +6,7 @@ export interface ComponentData {
   id: string
   name: ComponentName
   props: ComponentProps
+  events?: ComponentEvents
 }
 
 export interface ComponentProps {
@@ -22,6 +23,7 @@ export interface ComponentTemplate {
   label: string
   description: string
   props: ComponentProps
+  events?: ComponentEvents
 }
 
 export interface ComponentMeta {
@@ -39,6 +41,7 @@ export type PropComponent =
   | 'Select'
   | 'ButtonRadio'
   | 'Radio'
+  | 'Slider'
 
 export interface PropSchema {
   field: string
@@ -46,8 +49,25 @@ export interface PropSchema {
   component: PropComponent
   min?: number
   max?: number
+  step?: number
+  marks?: Record<number, string>
   options?: Array<{
     label: string
     value: string
   }>
 }
+
+export interface ComponentEvents {
+  click?: ComponentEventAction[]
+}
+
+export type ComponentEventAction =
+  | {
+      type: 'track'
+      eventName: string
+    }
+  | {
+      type: 'link'
+      url: string
+      openInNewTab?: boolean
+    }

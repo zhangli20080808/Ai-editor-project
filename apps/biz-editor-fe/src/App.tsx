@@ -7,6 +7,7 @@ import {
   Layout,
   Radio,
   Select,
+  Slider,
   Space,
   Typography,
 } from 'antd'
@@ -28,6 +29,7 @@ function App() {
   const removeComponent = useEditorStore((state) => state.removeComponent)
   const selectComponent = useEditorStore((state) => state.selectComponent)
   const updateComponent = useEditorStore((state) => state.updateComponent)
+  const updateClickEvent = useEditorStore((state) => state.updateClickEvent)
 
   const activeComponent =
     components.find((component) => component.id === currentElement) ?? null
@@ -107,6 +109,9 @@ function App() {
                 component={activeComponent}
                 onChange={(propKey, value) =>
                   updateComponent(activeComponent.id, propKey, value)
+                }
+                onEventChange={(eventType, value) =>
+                  updateClickEvent(activeComponent.id, eventType, value)
                 }
               />
             ) : (
@@ -218,10 +223,21 @@ function CanvasElement({
 interface SettingsPanelProps {
   component: ComponentData
   onChange: (propKey: string, value: unknown) => void
+  onEventChange: (eventType: 'track' | 'link', value: string) => void
 }
 
-function SettingsPanel({ component, onChange }: SettingsPanelProps) {
+function SettingsPanel({
+  component,
+  onChange,
+  onEventChange,
+}: SettingsPanelProps) {
   const meta = componentRegistry[component.name]
+  const trackEvent = component.events?.click?.find(
+    (event) => event.type === 'track',
+  )
+  const linkEvent = component.events?.click?.find(
+    (event) => event.type === 'link',
+  )
 
   return (
     <Form layout="vertical" className="settings-form">
@@ -239,6 +255,21 @@ function SettingsPanel({ component, onChange }: SettingsPanelProps) {
           onChange={(value) => onChange(schema.field, value)}
         />
       ))}
+      <div className="settings-section-title">点击事件</div>
+      <Form.Item label="埋点事件名 eventName">
+        <Input
+          placeholder="例如 button_click"
+          value={trackEvent?.eventName ?? ''}
+          onChange={(event) => onEventChange('track', event.target.value)}
+        />
+      </Form.Item>
+      <Form.Item label="跳转链接 url">
+        <Input
+          placeholder="https://example.com"
+          value={linkEvent?.url ?? ''}
+          onChange={(event) => onEventChange('link', event.target.value)}
+        />
+      </Form.Item>
     </Form>
   )
 }
@@ -290,6 +321,25 @@ function PropField({ schema, value, onChange }: PropFieldProps) {
           buttonStyle="solid"
           className="full-control"
           onChange={(event) => onChange(event.target.value)}
+        />
+      </Form.Item>
+    )
+  }
+
+  if (schema.component === 'Slider') {
+    const sliderProps = {
+      ...(schema.min === undefined ? {} : { min: schema.min }),
+      ...(schema.max === undefined ? {} : { max: schema.max }),
+      ...(schema.step === undefined ? {} : { step: schema.step }),
+      ...(schema.marks === undefined ? {} : { marks: schema.marks }),
+    }
+
+    return (
+      <Form.Item label={schema.label}>
+        <Slider
+          {...sliderProps}
+          value={Number(value)}
+          onChange={(nextValue) => onChange(nextValue)}
         />
       </Form.Item>
     )

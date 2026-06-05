@@ -31,6 +31,31 @@ export const componentRegistry: Record<ComponentName, ComponentMeta> = {
         ],
       },
       {
+        field: 'fontFamily',
+        label: '字体',
+        component: 'Select',
+        options: [
+          { label: '默认字体', value: 'system-ui' },
+          { label: '黑体', value: 'SimHei' },
+          { label: '宋体', value: 'SimSun' },
+          { label: 'Arial', value: 'Arial' },
+          { label: 'Georgia', value: 'Georgia' },
+        ],
+      },
+      {
+        field: 'lineHeight',
+        label: '行高',
+        component: 'Slider',
+        min: 1,
+        max: 3,
+        step: 0.1,
+        marks: {
+          1: '1',
+          2: '2',
+          3: '3',
+        },
+      },
+      {
         field: 'textAlign',
         label: '对齐方式',
         component: 'ButtonRadio',
@@ -94,8 +119,17 @@ export const componentTemplates: ComponentTemplate[] = [
       color: '#1f2329',
       fontSize: 20,
       fontWeight: '700',
-      lineHeight: '1.5',
+      fontFamily: 'system-ui',
+      lineHeight: 1.5,
       textAlign: 'left',
+    },
+    events: {
+      click: [
+        {
+          type: 'track',
+          eventName: 'text_click',
+        },
+      ],
     },
   },
   {
@@ -113,6 +147,14 @@ export const componentTemplates: ComponentTemplate[] = [
       objectFit: 'cover',
       borderRadius: 6,
     },
+    events: {
+      click: [
+        {
+          type: 'track',
+          eventName: 'image_click',
+        },
+      ],
+    },
   },
   {
     name: 'l-button',
@@ -129,6 +171,18 @@ export const componentTemplates: ComponentTemplate[] = [
       backgroundColor: '#ff5a3c',
       fontSize: 16,
       borderRadius: 6,
+    },
+    events: {
+      click: [
+        {
+          type: 'track',
+          eventName: 'button_click',
+        },
+        {
+          type: 'link',
+          url: 'https://example.com',
+        },
+      ],
     },
   },
 ]
