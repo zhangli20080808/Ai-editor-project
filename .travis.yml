@@ -1,0 +1,30 @@
+language: node_js
+
+node_js:
+  - "22"
+
+cache:
+  directories:
+    - ~/.pnpm-store
+
+before_install:
+  - npm install -g pnpm@10.0.0
+  - pnpm config set store-dir ~/.pnpm-store
+
+install:
+  - pnpm install --frozen-lockfile
+
+script:
+  - pnpm --filter @zhangli2008/ai-editor-components typecheck
+  - pnpm --filter @zhangli2008/ai-editor-components build
+  - cd packages/biz-components && npm publish --dry-run --registry=https://registry.npmjs.org/ && cd ../..
+
+before_deploy:
+  - echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
+
+deploy:
+  provider: script
+  script: cd packages/biz-components && npm publish --registry=https://registry.npmjs.org/
+  cleanup: false
+  on:
+    tags: true
