@@ -27,4 +27,4 @@ deploy:
   script: cd packages/biz-components && npm publish --registry=https://registry.npmjs.org/
   cleanup: false
   on:
-    tags: true
+    branch: main
