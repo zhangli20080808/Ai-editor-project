@@ -17,6 +17,9 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.101.0
         version: 5.101.0(react@19.2.7)
+      '@zhangli2008/ai-editor-components':
+        specifier: ^0.1.0
+        version: 0.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       antd:
         specifier: ^6.4.3
         version: 6.4.3(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -66,6 +69,30 @@ importers:
       typescript-eslint:
         specifier: ^8.59.2
         version: 8.60.1(eslint@10.4.1)(typescript@6.0.3)
+      vite:
+        specifier: ^8.0.12
+        version: 8.0.16(@types/node@24.13.0)
+
+  packages/biz-components:
+    devDependencies:
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.16
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.16)
+      '@vitejs/plugin-react':
+        specifier: ^6.0.1
+        version: 6.0.2(vite@8.0.16(@types/node@24.13.0))
+      react:
+        specifier: ^19.2.6
+        version: 19.2.7
+      react-dom:
+        specifier: ^19.2.6
+        version: 19.2.7(react@19.2.7)
+      typescript:
+        specifier: ~6.0.2
+        version: 6.0.3
       vite:
         specifier: ^8.0.12
         version: 8.0.16(@types/node@24.13.0)
@@ -778,6 +805,12 @@ packages:
         optional: true
       babel-plugin-react-compiler:
         optional: true
+
+  '@zhangli2008/ai-editor-components@0.1.0':
+    resolution: {integrity: sha512-gt0pT7lUhMW+nTTMJIMn0LbhxFqWMcghHr7GLPTjCol5jJiXfJXIm2AChV2XtCw1W05634dOGTF3SQ1sJvBFLg==, tarball: https://registry.npmjs.org/@zhangli2008/ai-editor-components/-/ai-editor-components-0.1.0.tgz}
+    peerDependencies:
+      react: ^19.0.0
+      react-dom: ^19.0.0
 
   acorn-jsx@5.3.2:
     resolution: {integrity: sha512-rq9s+JNhf0IChjtDXxllJ7g41oZk5SlXtp0LHwyA5cejwn7vKmKp4pPri6YEePv2PU65sAsegbXtIinmDFDXgQ==, tarball: https://registry.npmjs.org/acorn-jsx/-/acorn-jsx-5.3.2.tgz}
@@ -2135,6 +2168,11 @@ snapshots:
     dependencies:
       '@rolldown/pluginutils': 1.0.1
       vite: 8.0.16(@types/node@24.13.0)
+
+  '@zhangli2008/ai-editor-components@0.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+    dependencies:
+      react: 19.2.7
+      react-dom: 19.2.7(react@19.2.7)
 
   acorn-jsx@5.3.2(acorn@8.16.0):
     dependencies:

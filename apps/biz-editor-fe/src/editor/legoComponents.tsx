@@ -1,22 +1,5 @@
 import type { ComponentProps } from './types'
 
-export function LText(props: ComponentProps) {
-  return (
-    <div
-      style={{
-        color: props.color as string,
-        fontSize: Number(props.fontSize),
-        fontWeight: props.fontWeight as string,
-        fontFamily: props.fontFamily as string,
-        lineHeight: Number(props.lineHeight),
-        textAlign: props.textAlign as 'left' | 'center' | 'right',
-      }}
-    >
-      {props.text as string}
-    </div>
-  )
-}
-
 export function LImage(props: ComponentProps) {
   return (
     <img

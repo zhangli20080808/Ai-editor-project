@@ -3,7 +3,8 @@ import type {
   ComponentName,
   ComponentTemplate,
 } from './types'
-import { LButton, LImage, LText } from './legoComponents'
+import { EditorText } from './externalComponents'
+import { LButton, LImage } from './legoComponents'
 
 const commonPositionSchema = [
   { field: 'left', label: 'X 坐标', component: 'InputNumber', min: 0 },
@@ -16,7 +17,7 @@ export const componentRegistry: Record<ComponentName, ComponentMeta> = {
   'l-text': {
     name: 'l-text',
     label: '文本',
-    component: LText,
+    component: EditorText,
     propSchema: [
       { field: 'text', label: '文本内容', component: 'TextArea' },
       { field: 'color', label: '文字颜色', component: 'Color' },
