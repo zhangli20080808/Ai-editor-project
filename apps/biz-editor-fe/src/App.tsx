@@ -19,7 +19,16 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Eye, EyeOff, GripVertical, Lock, Trash2, Unlock } from 'lucide-react'
+import {
+  Eye,
+  EyeOff,
+  GripVertical,
+  Lock,
+  Redo2,
+  Trash2,
+  Undo2,
+  Unlock,
+} from 'lucide-react'
 import {
   Button,
   Collapse,
@@ -83,9 +92,12 @@ function App() {
 
   const components = useEditorStore((state) => state.components)
   const currentElement = useEditorStore((state) => state.currentElement)
+  const historyPast = useEditorStore((state) => state.historyPast)
+  const historyFuture = useEditorStore((state) => state.historyFuture)
   const pageSetting = useEditorStore((state) => state.pageSetting)
   const addComponent = useEditorStore((state) => state.addComponent)
   const addUploadedImage = useEditorStore((state) => state.addUploadedImage)
+  const commitHistory = useEditorStore((state) => state.commitHistory)
   const removeComponent = useEditorStore((state) => state.removeComponent)
   const selectComponent = useEditorStore((state) => state.selectComponent)
   const reorderComponents = useEditorStore((state) => state.reorderComponents)
@@ -105,6 +117,8 @@ function App() {
   )
   const updateClickEvent = useEditorStore((state) => state.updateClickEvent)
   const updatePageSetting = useEditorStore((state) => state.updatePageSetting)
+  const undo = useEditorStore((state) => state.undo)
+  const redo = useEditorStore((state) => state.redo)
 
   const activeComponent =
     components.find((component) => component.id === currentElement) ?? null
@@ -149,8 +163,34 @@ function App() {
                   使用交互手段更新元素值
                 </Text>
               </div>
-              <Text type="secondary">{components.length} 个组件</Text>
+              <Space size={8}>
+                <Text type="secondary">{components.length} 个组件</Text>
+                <Tooltip title="撤销 Ctrl/Cmd + Z">
+                  <Button
+                    aria-label="撤销"
+                    disabled={historyPast.length === 0}
+                    icon={<Undo2 size={16} />}
+                    shape="circle"
+                    size="small"
+                    onClick={undo}
+                  />
+                </Tooltip>
+                <Tooltip title="重做 Ctrl/Cmd + Shift + Z">
+                  <Button
+                    aria-label="重做"
+                    disabled={historyFuture.length === 0}
+                    icon={<Redo2 size={16} />}
+                    shape="circle"
+                    size="small"
+                    onClick={redo}
+                  />
+                </Tooltip>
+              </Space>
             </div>
+            <HistoryDebugPanel
+              historyFuture={historyFuture}
+              historyPast={historyPast}
+            />
             <div
               className="canvas-stage"
               role="presentation"
@@ -175,6 +215,7 @@ function App() {
                         layerIndex={index}
                         onRemove={() => removeComponent(component.id)}
                         onSelect={() => selectComponent(component.id)}
+                        onCommitHistory={commitHistory}
                         onUpdatePosition={(left, top) =>
                           updateComponentPosition(component.id, left, top)
                         }
@@ -235,6 +276,59 @@ function PanelTitle({ title, description }: PanelTitleProps) {
   )
 }
 
+interface HistoryDebugPanelProps {
+  historyPast: Array<{
+    components: ComponentData[]
+    currentElement: string | null
+  }>
+  historyFuture: Array<{
+    components: ComponentData[]
+    currentElement: string | null
+  }>
+}
+
+function HistoryDebugPanel({
+  historyPast,
+  historyFuture,
+}: HistoryDebugPanelProps) {
+  return (
+    <div className="history-debug-panel">
+      <HistoryStack title="Undo 栈" snapshots={historyPast} />
+      <HistoryStack title="Redo 栈" snapshots={historyFuture} />
+    </div>
+  )
+}
+
+interface HistoryStackProps {
+  title: string
+  snapshots: Array<{
+    components: ComponentData[]
+    currentElement: string | null
+  }>
+}
+
+function HistoryStack({ title, snapshots }: HistoryStackProps) {
+  return (
+    <div className="history-stack">
+      <Text type="secondary" className="history-stack-title">
+        {title} ({snapshots.length})
+      </Text>
+      <div className="history-stack-items">
+        {snapshots.length === 0 ? (
+          <span className="history-empty">空</span>
+        ) : (
+          snapshots.map((snapshot, index) => (
+            <span className="history-chip" key={`${title}-${index}`}>
+              #{index + 1} {snapshot.components.length}组件
+              {snapshot.currentElement ? ' · 已选中' : ''}
+            </span>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
 interface ImageUploadEntryProps {
   onUploaded: (asset: UploadedAsset) => void
 }
@@ -280,6 +374,7 @@ interface CanvasElementProps {
   active: boolean
   component: ComponentData
   layerIndex: number
+  onCommitHistory: () => void
   onRemove: () => void
   onSelect: () => void
   onUpdateRect: (rect: ComponentRect) => void
@@ -301,6 +396,7 @@ interface DragState {
   startTop: number
   maxLeft: number
   maxTop: number
+  historyCommitted: boolean
 }
 
 type ResizeDirection = 'nw' | 'ne' | 'sw' | 'se'
@@ -318,6 +414,7 @@ interface ResizeState {
   pageHeight: number
   minWidth: number
   minHeight: number
+  historyCommitted: boolean
 }
 
 const resizeHandles: Array<{ direction: ResizeDirection; label: string }> = [
@@ -331,6 +428,7 @@ function CanvasElement({
   active,
   component,
   layerIndex,
+  onCommitHistory,
   onRemove,
   onSelect,
   onUpdateRect,
@@ -380,6 +478,7 @@ function CanvasElement({
         0,
         Math.floor(pageCanvasRect.height - elementRect.height),
       ),
+      historyCommitted: false,
     }
 
     element.setPointerCapture(event.pointerId)
@@ -404,6 +503,14 @@ function CanvasElement({
       0,
       dragState.maxTop,
     )
+
+    if (
+      !dragState.historyCommitted &&
+      (nextLeft !== dragState.startLeft || nextTop !== dragState.startTop)
+    ) {
+      onCommitHistory()
+      dragState.historyCommitted = true
+    }
 
     onUpdatePosition(nextLeft, nextTop)
   }
@@ -454,6 +561,7 @@ function CanvasElement({
         pageHeight: Math.floor(pageCanvasRect.height),
         minWidth: 40,
         minHeight: 20,
+        historyCommitted: false,
       }
 
       const resizePointerId = event.pointerId
@@ -464,13 +572,21 @@ function CanvasElement({
         }
 
         moveEvent.preventDefault()
-        onUpdateRect(
-          calculateResizeRect(
-            resizeState,
-            moveEvent.clientX,
-            moveEvent.clientY,
-          ),
+        const nextRect = calculateResizeRect(
+          resizeState,
+          moveEvent.clientX,
+          moveEvent.clientY,
         )
+
+        if (
+          !resizeState.historyCommitted &&
+          hasRectChanged(resizeState, nextRect)
+        ) {
+          onCommitHistory()
+          resizeState.historyCommitted = true
+        }
+
+        onUpdateRect(nextRect)
       }
       const stopDocumentResize = (endEvent: globalThis.PointerEvent) => {
         const resizeState = resizeStateRef.current
@@ -617,6 +733,15 @@ function calculateResizeRect(
     width: Math.round(width),
     height: Math.round(height),
   }
+}
+
+function hasRectChanged(state: ResizeState, rect: ComponentRect) {
+  return (
+    rect.left !== state.startLeft ||
+    rect.top !== state.startTop ||
+    rect.width !== state.startWidth ||
+    rect.height !== state.startHeight
+  )
 }
 
 function clamp(value: number, min: number, max: number) {

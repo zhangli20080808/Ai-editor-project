@@ -80,6 +80,55 @@
   margin-left: 8px;
 }
 
+.history-debug-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  padding: 10px 16px;
+  background: #fbfcfd;
+  border-bottom: 1px solid #edf0f3;
+}
+
+.history-stack {
+  min-width: 0;
+}
+
+.history-stack-title {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.history-stack-items {
+  display: flex;
+  min-height: 24px;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.history-empty,
+.history-chip {
+  display: inline-flex;
+  height: 24px;
+  align-items: center;
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+.history-empty {
+  color: #c9cdd4;
+}
+
+.history-chip {
+  flex: none;
+  padding: 0 8px;
+  color: #4e5969;
+  background: #ffffff;
+  border: 1px solid #edf0f3;
+}
+
 .canvas-stage {
   position: relative;
   display: flex;

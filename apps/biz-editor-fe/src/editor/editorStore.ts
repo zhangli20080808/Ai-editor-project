@@ -12,6 +12,7 @@ import type { UploadedAsset } from './uploadService'
 const pageCanvasWidth = 375
 const pasteOffset = 16
 const maxHistoryLength = 50
+const historyMergeDelay = 300
 
 interface HistorySnapshot {
   components: ComponentData[]
@@ -25,6 +26,8 @@ interface EditorState {
   copiedComponent: ComponentData | null
   historyPast: HistorySnapshot[]
   historyFuture: HistorySnapshot[]
+  lastHistoryMergeKey: string | null
+  lastHistoryMergeTime: number
   pageSetting: PageSetting
   addComponent: (template: ComponentTemplate) => void
   addUploadedImage: (asset: UploadedAsset) => void
@@ -33,6 +36,7 @@ interface EditorState {
   removeComponent: (id: string) => void
   removeCurrentComponent: () => void
   selectComponent: (id: string | null) => void
+  commitHistory: () => void
   moveCurrentComponent: (deltaLeft: number, deltaTop: number) => void
   reorderComponents: (
     orderedIds: string[],
@@ -67,6 +71,8 @@ export const useEditorStore = create<EditorState>()(
     copiedComponent: null,
     historyPast: [],
     historyFuture: [],
+    lastHistoryMergeKey: null,
+    lastHistoryMergeTime: 0,
     pageSetting: {
       backgroundColor: '#ffffff',
       backgroundImage: '',
@@ -207,6 +213,11 @@ export const useEditorStore = create<EditorState>()(
         state.currentElement = id
       })
     },
+    commitHistory: () => {
+      set((state) => {
+        pushHistory(state)
+      })
+    },
     moveCurrentComponent: (deltaLeft, deltaTop) => {
       set((state) => {
         const currentComponent = getCurrentComponent(state)
@@ -214,7 +225,9 @@ export const useEditorStore = create<EditorState>()(
           return
         }
 
-        pushHistory(state)
+        pushHistory(state, {
+          mergeKey: `component:${currentComponent.id}:keyboard-position`,
+        })
         const maxLeft = Math.max(
           0,
           pageCanvasWidth - Number(currentComponent.props.width),
@@ -311,7 +324,9 @@ export const useEditorStore = create<EditorState>()(
       set((state) => {
         const component = state.components.find((item) => item.id === id)
         if (component) {
-          pushHistory(state)
+          pushHistory(state, {
+            mergeKey: `component:${id}:prop:${propKey}`,
+          })
           component.props[propKey] = value
         }
       })
@@ -338,7 +353,9 @@ export const useEditorStore = create<EditorState>()(
     },
     updatePageSetting: (key, value) => {
       set((state) => {
-        pushHistory(state)
+        pushHistory(state, {
+          mergeKey: `page:${String(key)}`,
+        })
         state.pageSetting[key] = value
       })
     },
@@ -349,7 +366,9 @@ export const useEditorStore = create<EditorState>()(
           return
         }
 
-        pushHistory(state)
+        pushHistory(state, {
+          mergeKey: `component:${id}:event:${eventType}`,
+        })
         const actions = component.events?.click ?? []
         const nextActions = actions.filter((action) => action.type !== eventType)
 
@@ -416,12 +435,29 @@ function getCurrentComponent(state: EditorState) {
   )
 }
 
-function pushHistory(state: EditorState) {
+interface PushHistoryOptions {
+  mergeKey?: string
+}
+
+function pushHistory(state: EditorState, options: PushHistoryOptions = {}) {
+  const now = Date.now()
+  const shouldMerge =
+    options.mergeKey &&
+    state.lastHistoryMergeKey === options.mergeKey &&
+    now - state.lastHistoryMergeTime <= historyMergeDelay
+
+  if (shouldMerge) {
+    state.lastHistoryMergeTime = now
+    return
+  }
+
   state.historyPast.push(createHistorySnapshot(state))
   if (state.historyPast.length > maxHistoryLength) {
     state.historyPast.shift()
   }
   state.historyFuture = []
+  state.lastHistoryMergeKey = options.mergeKey ?? null
+  state.lastHistoryMergeTime = options.mergeKey ? now : 0
 }
 
 function createHistorySnapshot(state: EditorState): HistorySnapshot {
@@ -439,6 +475,8 @@ function restoreHistorySnapshot(
   state.components = snapshot.components.map(cloneComponent)
   state.currentElement = snapshot.currentElement
   state.pageSetting = { ...snapshot.pageSetting }
+  state.lastHistoryMergeKey = null
+  state.lastHistoryMergeTime = 0
 }
 
 function cloneComponent(component: ComponentData): ComponentData {
