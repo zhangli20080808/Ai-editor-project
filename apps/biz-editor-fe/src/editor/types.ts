@@ -6,6 +6,9 @@ export interface ComponentData {
   id: string
   name: ComponentName
   props: ComponentProps
+  layerName?: string
+  isHidden?: boolean
+  isLocked?: boolean
   events?: ComponentEvents
 }
 
@@ -26,6 +29,14 @@ export interface ComponentTemplate {
   events?: ComponentEvents
 }
 
+export interface PageSetting {
+  backgroundColor: string
+  backgroundImage: string
+  backgroundRepeat: 'no-repeat' | 'repeat' | 'repeat-x' | 'repeat-y'
+  backgroundSize: 'cover' | 'contain' | 'auto' | '100% 100%'
+  height: number
+}
+
 export interface ComponentMeta {
   name: ComponentName
   label: string
@@ -43,10 +54,19 @@ export type PropComponent =
   | 'Radio'
   | 'Slider'
 
+export type PropGroupKey =
+  | 'basic'
+  | 'size'
+  | 'border'
+  | 'shadowOpacity'
+  | 'position'
+  | 'event'
+
 export interface PropSchema {
   field: string
   label: string
   component: PropComponent
+  group?: PropGroupKey
   min?: number
   max?: number
   step?: number

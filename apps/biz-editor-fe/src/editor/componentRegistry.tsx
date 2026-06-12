@@ -6,11 +6,35 @@ import type {
 import { EditorText } from './externalComponents'
 import { LButton, LImage } from './legoComponents'
 
-const commonPositionSchema = [
-  { field: 'left', label: 'X 坐标', component: 'InputNumber', min: 0 },
-  { field: 'top', label: 'Y 坐标', component: 'InputNumber', min: 0 },
-  { field: 'width', label: '宽度', component: 'InputNumber', min: 40 },
-  { field: 'height', label: '高度', component: 'InputNumber', min: 20 },
+const commonLayoutSchema = [
+  {
+    field: 'width',
+    label: '宽度',
+    component: 'InputNumber',
+    group: 'size',
+    min: 40,
+  },
+  {
+    field: 'height',
+    label: '高度',
+    component: 'InputNumber',
+    group: 'size',
+    min: 20,
+  },
+  {
+    field: 'left',
+    label: 'X 坐标',
+    component: 'InputNumber',
+    group: 'position',
+    min: 0,
+  },
+  {
+    field: 'top',
+    label: 'Y 坐标',
+    component: 'InputNumber',
+    group: 'position',
+    min: 0,
+  },
 ] as const
 
 export const componentRegistry: Record<ComponentName, ComponentMeta> = {
@@ -19,13 +43,25 @@ export const componentRegistry: Record<ComponentName, ComponentMeta> = {
     label: '文本',
     component: EditorText,
     propSchema: [
-      { field: 'text', label: '文本内容', component: 'TextArea' },
-      { field: 'color', label: '文字颜色', component: 'Color' },
-      { field: 'fontSize', label: '字号', component: 'InputNumber', min: 10 },
+      {
+        field: 'text',
+        label: '文本内容',
+        component: 'TextArea',
+        group: 'basic',
+      },
+      { field: 'color', label: '文字颜色', component: 'Color', group: 'basic' },
+      {
+        field: 'fontSize',
+        label: '字号',
+        component: 'InputNumber',
+        group: 'basic',
+        min: 10,
+      },
       {
         field: 'fontWeight',
         label: '字重',
         component: 'Radio',
+        group: 'basic',
         options: [
           { label: '常规', value: '400' },
           { label: '加粗', value: '700' },
@@ -35,6 +71,7 @@ export const componentRegistry: Record<ComponentName, ComponentMeta> = {
         field: 'fontFamily',
         label: '字体',
         component: 'Select',
+        group: 'basic',
         options: [
           { label: '默认字体', value: 'system-ui' },
           { label: '黑体', value: 'SimHei' },
@@ -47,6 +84,7 @@ export const componentRegistry: Record<ComponentName, ComponentMeta> = {
         field: 'lineHeight',
         label: '行高',
         component: 'Slider',
+        group: 'basic',
         min: 1,
         max: 3,
         step: 0.1,
@@ -60,13 +98,14 @@ export const componentRegistry: Record<ComponentName, ComponentMeta> = {
         field: 'textAlign',
         label: '对齐方式',
         component: 'ButtonRadio',
+        group: 'basic',
         options: [
           { label: '左对齐', value: 'left' },
           { label: '居中', value: 'center' },
           { label: '右对齐', value: 'right' },
         ],
       },
-      ...commonPositionSchema,
+      ...commonLayoutSchema,
     ],
   },
   'l-image': {
@@ -74,20 +113,27 @@ export const componentRegistry: Record<ComponentName, ComponentMeta> = {
     label: '图片',
     component: LImage,
     propSchema: [
-      { field: 'src', label: '图片地址', component: 'Input' },
-      { field: 'alt', label: '图片描述', component: 'Input' },
+      { field: 'src', label: '图片地址', component: 'Input', group: 'basic' },
+      { field: 'alt', label: '图片描述', component: 'Input', group: 'basic' },
       {
         field: 'objectFit',
         label: '填充方式',
         component: 'Select',
+        group: 'basic',
         options: [
           { label: '裁剪填充', value: 'cover' },
           { label: '完整显示', value: 'contain' },
           { label: '拉伸填充', value: 'fill' },
         ],
       },
-      { field: 'borderRadius', label: '圆角', component: 'InputNumber', min: 0 },
-      ...commonPositionSchema,
+      {
+        field: 'borderRadius',
+        label: '圆角',
+        component: 'InputNumber',
+        group: 'border',
+        min: 0,
+      },
+      ...commonLayoutSchema,
     ],
   },
   'l-button': {
@@ -95,12 +141,29 @@ export const componentRegistry: Record<ComponentName, ComponentMeta> = {
     label: '按钮',
     component: LButton,
     propSchema: [
-      { field: 'text', label: '按钮文字', component: 'Input' },
-      { field: 'color', label: '文字颜色', component: 'Color' },
-      { field: 'backgroundColor', label: '背景颜色', component: 'Color' },
-      { field: 'fontSize', label: '字号', component: 'InputNumber', min: 10 },
-      { field: 'borderRadius', label: '圆角', component: 'InputNumber', min: 0 },
-      ...commonPositionSchema,
+      { field: 'text', label: '按钮文字', component: 'Input', group: 'basic' },
+      { field: 'color', label: '文字颜色', component: 'Color', group: 'basic' },
+      {
+        field: 'backgroundColor',
+        label: '背景颜色',
+        component: 'Color',
+        group: 'basic',
+      },
+      {
+        field: 'fontSize',
+        label: '字号',
+        component: 'InputNumber',
+        group: 'basic',
+        min: 10,
+      },
+      {
+        field: 'borderRadius',
+        label: '圆角',
+        component: 'InputNumber',
+        group: 'border',
+        min: 0,
+      },
+      ...commonLayoutSchema,
     ],
   },
 }
