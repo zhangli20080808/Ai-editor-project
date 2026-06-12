@@ -52,6 +52,7 @@ import {
 } from './editor/componentRegistry'
 import { useEditorStore } from './editor/editorStore'
 import { useClickOutside } from './hooks/useClickOutside'
+import { useEditorHotkeys } from './hooks/useEditorHotkeys'
 import { useKeyPress } from './hooks/useKeyPress'
 import { uploadImage } from './editor/uploadService'
 import type { UploadedAsset } from './editor/uploadService'
@@ -78,6 +79,8 @@ const pageColorPresets = [
 ]
 
 function App() {
+  useEditorHotkeys()
+
   const components = useEditorStore((state) => state.components)
   const currentElement = useEditorStore((state) => state.currentElement)
   const pageSetting = useEditorStore((state) => state.pageSetting)
@@ -836,7 +839,11 @@ function LayerPanel({
   onUpdateLayerName,
 }: LayerPanelProps) {
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 6,
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     }),

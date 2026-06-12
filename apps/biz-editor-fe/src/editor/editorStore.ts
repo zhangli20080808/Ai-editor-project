@@ -9,14 +9,31 @@ import type {
 } from './types'
 import type { UploadedAsset } from './uploadService'
 
-interface EditorState {
+const pageCanvasWidth = 375
+const pasteOffset = 16
+const maxHistoryLength = 50
+
+interface HistorySnapshot {
   components: ComponentData[]
   currentElement: string | null
   pageSetting: PageSetting
+}
+
+interface EditorState {
+  components: ComponentData[]
+  currentElement: string | null
+  copiedComponent: ComponentData | null
+  historyPast: HistorySnapshot[]
+  historyFuture: HistorySnapshot[]
+  pageSetting: PageSetting
   addComponent: (template: ComponentTemplate) => void
   addUploadedImage: (asset: UploadedAsset) => void
+  copyCurrentComponent: () => void
+  pasteCopiedComponent: () => void
   removeComponent: (id: string) => void
+  removeCurrentComponent: () => void
   selectComponent: (id: string | null) => void
+  moveCurrentComponent: (deltaLeft: number, deltaTop: number) => void
   reorderComponents: (
     orderedIds: string[],
     options?: { syncCanvasTop?: boolean },
@@ -39,12 +56,17 @@ interface EditorState {
     eventType: ComponentEventAction['type'],
     value: string,
   ) => void
+  undo: () => void
+  redo: () => void
 }
 
 export const useEditorStore = create<EditorState>()(
   immer((set) => ({
     components: [],
     currentElement: null,
+    copiedComponent: null,
+    historyPast: [],
+    historyFuture: [],
     pageSetting: {
       backgroundColor: '#ffffff',
       backgroundImage: '',
@@ -54,6 +76,7 @@ export const useEditorStore = create<EditorState>()(
     },
     addComponent: (template) => {
       set((state) => {
+        pushHistory(state)
         const id = createComponentId()
         const offset = state.components.length * 16
         const props: ComponentProps = {
@@ -78,6 +101,7 @@ export const useEditorStore = create<EditorState>()(
     },
     addUploadedImage: (asset) => {
       set((state) => {
+        pushHistory(state)
         const id = createComponentId()
         const offset = state.components.length * 16
 
@@ -107,14 +131,68 @@ export const useEditorStore = create<EditorState>()(
         state.currentElement = id
       })
     },
+    copyCurrentComponent: () => {
+      set((state) => {
+        const currentComponent = getCurrentComponent(state)
+        if (currentComponent) {
+          state.copiedComponent = cloneComponent(currentComponent)
+        }
+      })
+    },
+    pasteCopiedComponent: () => {
+      set((state) => {
+        if (!state.copiedComponent) {
+          return
+        }
+
+        pushHistory(state)
+        const nextComponent = cloneComponent(state.copiedComponent)
+        const nextLeft = clampNumber(
+          Number(nextComponent.props.left) + pasteOffset,
+          0,
+          Math.max(0, pageCanvasWidth - Number(nextComponent.props.width)),
+        )
+        const nextTop = clampNumber(
+          Number(nextComponent.props.top) + pasteOffset,
+          0,
+          Math.max(
+            0,
+            state.pageSetting.height - Number(nextComponent.props.height),
+          ),
+        )
+
+        nextComponent.id = createComponentId()
+        nextComponent.props.left = nextLeft
+        nextComponent.props.top = nextTop
+        nextComponent.props.label = `${String(nextComponent.props.label)} 副本`
+        state.components.push(nextComponent)
+        state.currentElement = nextComponent.id
+        state.copiedComponent = cloneComponent(nextComponent)
+      })
+    },
     removeComponent: (id) => {
       set((state) => {
+        pushHistory(state)
         state.components = state.components.filter(
           (component) => component.id !== id,
         )
         if (state.currentElement === id) {
           state.currentElement = null
         }
+      })
+    },
+    removeCurrentComponent: () => {
+      set((state) => {
+        const currentComponent = getCurrentComponent(state)
+        if (!currentComponent || currentComponent.isLocked) {
+          return
+        }
+
+        pushHistory(state)
+        state.components = state.components.filter(
+          (component) => component.id !== currentComponent.id,
+        )
+        state.currentElement = null
       })
     },
     selectComponent: (id) => {
@@ -127,6 +205,35 @@ export const useEditorStore = create<EditorState>()(
         }
 
         state.currentElement = id
+      })
+    },
+    moveCurrentComponent: (deltaLeft, deltaTop) => {
+      set((state) => {
+        const currentComponent = getCurrentComponent(state)
+        if (!currentComponent || currentComponent.isLocked) {
+          return
+        }
+
+        pushHistory(state)
+        const maxLeft = Math.max(
+          0,
+          pageCanvasWidth - Number(currentComponent.props.width),
+        )
+        const maxTop = Math.max(
+          0,
+          state.pageSetting.height - Number(currentComponent.props.height),
+        )
+
+        currentComponent.props.left = clampNumber(
+          Number(currentComponent.props.left) + deltaLeft,
+          0,
+          maxLeft,
+        )
+        currentComponent.props.top = clampNumber(
+          Number(currentComponent.props.top) + deltaTop,
+          0,
+          maxTop,
+        )
       })
     },
     reorderComponents: (orderedIds, options) => {
@@ -143,6 +250,7 @@ export const useEditorStore = create<EditorState>()(
           return
         }
 
+        pushHistory(state)
         state.components = nextComponents as ComponentData[]
 
         if (options?.syncCanvasTop) {
@@ -164,6 +272,7 @@ export const useEditorStore = create<EditorState>()(
           return
         }
 
+        pushHistory(state)
         component.isHidden = !component.isHidden
 
         if (component.isHidden && state.currentElement === id) {
@@ -178,6 +287,7 @@ export const useEditorStore = create<EditorState>()(
           return
         }
 
+        pushHistory(state)
         component.isLocked = !component.isLocked
       })
     },
@@ -188,6 +298,7 @@ export const useEditorStore = create<EditorState>()(
           return
         }
 
+        pushHistory(state)
         const nextLayerName = layerName.trim()
         if (nextLayerName) {
           component.layerName = nextLayerName
@@ -200,6 +311,7 @@ export const useEditorStore = create<EditorState>()(
       set((state) => {
         const component = state.components.find((item) => item.id === id)
         if (component) {
+          pushHistory(state)
           component.props[propKey] = value
         }
       })
@@ -226,6 +338,7 @@ export const useEditorStore = create<EditorState>()(
     },
     updatePageSetting: (key, value) => {
       set((state) => {
+        pushHistory(state)
         state.pageSetting[key] = value
       })
     },
@@ -236,6 +349,7 @@ export const useEditorStore = create<EditorState>()(
           return
         }
 
+        pushHistory(state)
         const actions = component.events?.click ?? []
         const nextActions = actions.filter((action) => action.type !== eventType)
 
@@ -262,6 +376,28 @@ export const useEditorStore = create<EditorState>()(
         }
       })
     },
+    undo: () => {
+      set((state) => {
+        const previous = state.historyPast.pop()
+        if (!previous) {
+          return
+        }
+
+        state.historyFuture.unshift(createHistorySnapshot(state))
+        restoreHistorySnapshot(state, previous)
+      })
+    },
+    redo: () => {
+      set((state) => {
+        const next = state.historyFuture.shift()
+        if (!next) {
+          return
+        }
+
+        state.historyPast.push(createHistorySnapshot(state))
+        restoreHistorySnapshot(state, next)
+      })
+    },
   })),
 )
 
@@ -271,4 +407,55 @@ function createComponentId() {
   }
 
   return `component_${Date.now()}_${Math.random().toString(16).slice(2)}`
+}
+
+function getCurrentComponent(state: EditorState) {
+  return (
+    state.components.find((component) => component.id === state.currentElement) ??
+    null
+  )
+}
+
+function pushHistory(state: EditorState) {
+  state.historyPast.push(createHistorySnapshot(state))
+  if (state.historyPast.length > maxHistoryLength) {
+    state.historyPast.shift()
+  }
+  state.historyFuture = []
+}
+
+function createHistorySnapshot(state: EditorState): HistorySnapshot {
+  return {
+    components: state.components.map(cloneComponent),
+    currentElement: state.currentElement,
+    pageSetting: { ...state.pageSetting },
+  }
+}
+
+function restoreHistorySnapshot(
+  state: EditorState,
+  snapshot: HistorySnapshot,
+) {
+  state.components = snapshot.components.map(cloneComponent)
+  state.currentElement = snapshot.currentElement
+  state.pageSetting = { ...snapshot.pageSetting }
+}
+
+function cloneComponent(component: ComponentData): ComponentData {
+  const clonedComponent: ComponentData = {
+    ...component,
+    props: { ...component.props },
+  }
+
+  if (component.events?.click) {
+    clonedComponent.events = {
+      click: component.events.click.map((event) => ({ ...event })),
+    }
+  }
+
+  return clonedComponent
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max)
 }
