@@ -36,6 +36,10 @@ export function useEditorHotkeys() {
         return true
       }
 
+      if (isUndoRedoHotkey(event)) {
+        return true
+      }
+
       return !(
         target.isContentEditable ||
         target.closest('input, textarea, select, [contenteditable="true"]')
@@ -106,4 +110,11 @@ export function useEditorHotkeys() {
       hotkeys.filter = previousFilter
     }
   }, [])
+}
+
+function isUndoRedoHotkey(event: KeyboardEvent) {
+  return (
+    (event.ctrlKey || event.metaKey) &&
+    event.key.toLowerCase() === 'z'
+  )
 }
