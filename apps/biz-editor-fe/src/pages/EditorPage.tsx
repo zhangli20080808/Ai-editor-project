@@ -24,12 +24,17 @@ import {
   EyeOff,
   GripVertical,
   Lock,
+  Maximize2,
+  Minus,
+  Plus,
   Redo2,
+  Settings2,
   Trash2,
   Undo2,
   Unlock,
 } from 'lucide-react'
 import {
+  Alert,
   Button,
   Collapse,
   Empty,
@@ -37,19 +42,22 @@ import {
   Input,
   InputNumber,
   Layout,
+  Modal,
   Popover,
   Radio,
   Select,
   Slider,
   Space,
   Tabs,
+  Tag,
   Tooltip,
   Typography,
   Upload,
   message,
 } from 'antd'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { UploadProps } from 'antd'
+import { useNavigate, useParams } from 'react-router'
 import type {
   ComponentData,
   ComponentName,
@@ -71,6 +79,14 @@ import { useEditorHotkeys } from '../hooks/useEditorHotkeys'
 import { useKeyPress } from '../hooks/useKeyPress'
 import { uploadImage } from '../editor/uploadService'
 import type { UploadedAsset } from '../editor/uploadService'
+import {
+  useCreateWorkMutation,
+  usePublishWorkMutation,
+  useUpdateWorkMutation,
+  useWorkQuery,
+} from '../api/works'
+import type { WorkContent } from '../api/types'
+import { getRequestErrorMessage } from '../api/error'
 import '../App.css'
 
 const { Content, Sider } = Layout
@@ -92,15 +108,30 @@ const pageColorPresets = [
   '#1677ff',
   '#52c41a',
 ]
+const defaultWorkMeta = {
+  title: '',
+  desc: '',
+  coverImg: '',
+}
+type SaveStatus = 'idle' | 'dirty' | 'saving' | 'saved' | 'publishing' | 'published' | 'error'
 
 function EditorPage() {
   useEditorHotkeys()
+  const navigate = useNavigate()
+  const { workId } = useParams<{ workId: string }>()
 
   const components = useEditorStore((state) => state.components)
   const currentElement = useEditorStore((state) => state.currentElement)
   const historyPast = useEditorStore((state) => state.historyPast)
   const historyFuture = useEditorStore((state) => state.historyFuture)
+  const canvasZoom = useEditorStore((state) => state.canvasZoom)
   const pageSetting = useEditorStore((state) => state.pageSetting)
+  const zoomInCanvas = useEditorStore((state) => state.zoomInCanvas)
+  const zoomOutCanvas = useEditorStore((state) => state.zoomOutCanvas)
+  const resetCanvasZoom = useEditorStore((state) => state.resetCanvasZoom)
+  const fitCanvasToView = useEditorStore((state) => state.fitCanvasToView)
+  const loadWorkContent = useEditorStore((state) => state.loadWorkContent)
+  const resetEditor = useEditorStore((state) => state.resetEditor)
   const addComponent = useEditorStore((state) => state.addComponent)
   const addUploadedImage = useEditorStore((state) => state.addUploadedImage)
   const removeComponent = useEditorStore((state) => state.removeComponent)
@@ -130,9 +161,195 @@ function EditorPage() {
   const updatePageSetting = useEditorStore((state) => state.updatePageSetting)
   const undo = useEditorStore((state) => state.undo)
   const redo = useEditorStore((state) => state.redo)
+  const loadedWorkIdRef = useRef<string | null>(null)
+  const workQuery = useWorkQuery(workId)
+  const createWorkMutation = useCreateWorkMutation()
+  const updateWorkMutation = useUpdateWorkMutation()
+  const publishWorkMutation = usePublishWorkMutation()
+  const canvasStageRef = useRef<HTMLDivElement | null>(null)
+  const baselineSnapshotRef = useRef<string | null>(null)
+  const shouldResetBaselineRef = useRef(false)
+  const [workMeta, setWorkMeta] = useState(defaultWorkMeta)
+  const [metaModalOpen, setMetaModalOpen] = useState(false)
+  const [pendingSave, setPendingSave] = useState(false)
+  const [pendingPublish, setPendingPublish] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null)
+  const saving = saveStatus === 'saving' || saveStatus === 'publishing'
+  const currentWorkSnapshot = useMemo(
+    () =>
+      createWorkSnapshot(
+        workMeta,
+        createWorkContent(components, pageSetting),
+      ),
+    [components, pageSetting, workMeta],
+  )
 
   const activeComponent =
     components.find((component) => component.id === currentElement) ?? null
+
+  useEffect(() => {
+    if (!workId) {
+      loadedWorkIdRef.current = null
+      shouldResetBaselineRef.current = true
+      baselineSnapshotRef.current = null
+      setWorkMeta(defaultWorkMeta)
+      setSaveStatus('idle')
+      setLastSavedAt(null)
+      resetEditor()
+    }
+  }, [resetEditor, workId])
+
+  useEffect(() => {
+    if (!workId || !workQuery.data) {
+      return
+    }
+
+    if (loadedWorkIdRef.current === workQuery.data.uuid) {
+      return
+    }
+
+    loadWorkContent(workQuery.data.content)
+    setWorkMeta({
+      title:
+        workQuery.data.title === legacyDefaultWorkTitle
+          ? ''
+          : workQuery.data.title || '',
+      desc: workQuery.data.desc || '',
+      coverImg: workQuery.data.coverImg || '',
+    })
+    setSaveStatus('saved')
+    setLastSavedAt(workQuery.data.updatedAt)
+    shouldResetBaselineRef.current = true
+    loadedWorkIdRef.current = workQuery.data.uuid
+  }, [loadWorkContent, workId, workQuery.data])
+
+  useEffect(() => {
+    if (workQuery.error) {
+      message.error(getRequestErrorMessage(workQuery.error))
+    }
+  }, [workQuery.error])
+
+  useEffect(() => {
+    if (shouldResetBaselineRef.current) {
+      baselineSnapshotRef.current = currentWorkSnapshot
+      shouldResetBaselineRef.current = false
+      return
+    }
+
+    if (!baselineSnapshotRef.current) {
+      baselineSnapshotRef.current = currentWorkSnapshot
+      return
+    }
+
+    if (
+      currentWorkSnapshot !== baselineSnapshotRef.current &&
+      saveStatus !== 'saving' &&
+      saveStatus !== 'publishing'
+    ) {
+      setSaveStatus('dirty')
+    }
+  }, [currentWorkSnapshot, saveStatus])
+
+  const saveCurrentWork = async () => {
+    const content = createWorkContent(components, pageSetting)
+    const metaPayload = normalizeWorkMeta(workMeta)
+    setSaveStatus('saving')
+
+    if (workId) {
+      const savedWork = await updateWorkMutation.mutateAsync({
+        id: workId,
+        payload: {
+          ...metaPayload,
+          content,
+        },
+      })
+      baselineSnapshotRef.current = createWorkSnapshot(metaPayload, content)
+      setSaveStatus('saved')
+      setLastSavedAt(savedWork.updatedAt)
+      return savedWork
+    }
+
+    const createdWork = await createWorkMutation.mutateAsync({
+      ...metaPayload,
+      content,
+    })
+    loadedWorkIdRef.current = createdWork.uuid
+    baselineSnapshotRef.current = createWorkSnapshot(metaPayload, content)
+    setSaveStatus('saved')
+    setLastSavedAt(createdWork.updatedAt)
+    navigate(`/editor/${createdWork.uuid}`, { replace: true })
+    return createdWork
+  }
+
+  const handleSave = async () => {
+    if (!hasMeaningfulWorkTitle(workMeta.title)) {
+      setPendingSave(true)
+      setPendingPublish(false)
+      setMetaModalOpen(true)
+      message.warning('保存前请先设置作品标题')
+      return
+    }
+
+    try {
+      await saveCurrentWork()
+      message.success('作品保存成功')
+    } catch (error) {
+      setSaveStatus('error')
+      message.error(getRequestErrorMessage(error))
+    }
+  }
+
+  const handlePublish = async () => {
+    if (!hasMeaningfulWorkTitle(workMeta.title)) {
+      setPendingSave(false)
+      setPendingPublish(true)
+      setMetaModalOpen(true)
+      message.warning('发布前请先填写作品标题')
+      return
+    }
+
+    try {
+      const savedWork = await saveCurrentWork()
+      setSaveStatus('publishing')
+      await publishWorkMutation.mutateAsync(savedWork.uuid)
+      setSaveStatus('published')
+      setLastSavedAt(new Date().toISOString())
+      message.success('作品发布成功')
+    } catch (error) {
+      setSaveStatus('error')
+      message.error(getRequestErrorMessage(error))
+    }
+  }
+  const handleMetaModalOk = () => {
+    if (!hasMeaningfulWorkTitle(workMeta.title)) {
+      message.warning('请设置一个明确的作品标题')
+      return
+    }
+
+    setMetaModalOpen(false)
+    if (pendingSave) {
+      setPendingSave(false)
+      void handleSave()
+      return
+    }
+
+    if (pendingPublish) {
+      setPendingPublish(false)
+      void handlePublish()
+    }
+  }
+  const handleFitCanvas = () => {
+    const stage = canvasStageRef.current
+    if (!stage) {
+      return
+    }
+
+    fitCanvasToView({
+      width: stage.clientWidth,
+      height: stage.clientHeight,
+    })
+  }
   const templateTabItems = [
     {
       key: 'all',
@@ -193,13 +410,57 @@ function EditorPage() {
         <Content className="canvas-region">
             <div className="canvas-toolbar">
               <div>
-                <Text strong>画布</Text>
+                <Space size={8} className="work-heading">
+                  <Text strong>{workMeta.title || '未设置标题'}</Text>
+                  <Tag color={getSaveStatusMeta(saveStatus).color}>
+                    {getSaveStatusMeta(saveStatus).label}
+                  </Tag>
+                </Space>
                 <Text type="secondary" className="muted-text">
-                  使用交互手段更新元素值
+                  {workId
+                    ? `正在编辑：${workId}`
+                    : '新建作品'}
+                  {lastSavedAt ? ` · ${formatSaveTime(lastSavedAt)}` : ''}
                 </Text>
               </div>
               <Space size={12} className="canvas-toolbar-actions">
                 <Text type="secondary">{components.length} 个组件</Text>
+                <Space size={4} className="canvas-zoom-controls">
+                  <Tooltip title="缩小画布">
+                    <Button
+                      aria-label="缩小画布"
+                      icon={<Minus size={14} />}
+                      shape="circle"
+                      size="small"
+                      onClick={zoomOutCanvas}
+                    />
+                  </Tooltip>
+                  <Button
+                    className="canvas-zoom-value"
+                    size="small"
+                    onClick={resetCanvasZoom}
+                  >
+                    {Math.round(canvasZoom * 100)}%
+                  </Button>
+                  <Tooltip title="放大画布">
+                    <Button
+                      aria-label="放大画布"
+                      icon={<Plus size={14} />}
+                      shape="circle"
+                      size="small"
+                      onClick={zoomInCanvas}
+                    />
+                  </Tooltip>
+                  <Tooltip title="适应视图">
+                    <Button
+                      aria-label="适应视图"
+                      icon={<Maximize2 size={14} />}
+                      shape="circle"
+                      size="small"
+                      onClick={handleFitCanvas}
+                    />
+                  </Tooltip>
+                </Space>
                 <Space size={6}>
                 <Popover
                   content={
@@ -237,9 +498,27 @@ function EditorPage() {
                 </Popover>
                 </Space>
                 <Space size={6}>
+                  <Button
+                    icon={<Settings2 size={14} />}
+                    size="small"
+                    onClick={() => setMetaModalOpen(true)}
+                  >
+                    作品设置
+                  </Button>
                   <Button size="small">预览</Button>
-                  <Button size="small">保存</Button>
-                  <Button type="primary" size="small">
+                  <Button
+                    loading={saveStatus === 'saving'}
+                    size="small"
+                    onClick={handleSave}
+                  >
+                    保存
+                  </Button>
+                  <Button
+                    loading={saving}
+                    type="primary"
+                    size="small"
+                    onClick={handlePublish}
+                  >
                     发布
                   </Button>
                 </Space>
@@ -247,44 +526,60 @@ function EditorPage() {
             </div>
             <div
               className="canvas-stage"
+              ref={canvasStageRef}
               role="presentation"
               onClick={() => selectComponent(null)}
             >
               <div
-                className="page-canvas"
-                style={getPageCanvasStyle(pageSetting)}
+                className="page-canvas-viewport"
+                style={getPageCanvasViewportStyle(pageSetting, canvasZoom)}
               >
-                {components.length === 0 ? (
-                  <Empty
-                    description="从左侧添加一个组件"
-                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                {workQuery.isError ? (
+                  <Alert
+                    className="work-load-error"
+                    message="作品加载失败"
+                    description={getRequestErrorMessage(workQuery.error)}
+                    type="error"
+                    showIcon
                   />
-                ) : (
-                  components.map((component, index) =>
-                    component.isHidden ? null : (
-                      <CanvasElement
-                        active={component.id === currentElement}
-                        component={component}
-                        key={component.id}
-                        layerIndex={index}
-                        onRemove={() => removeComponent(component.id)}
-                        onSelect={() => selectComponent(component.id)}
-                        onCommitPosition={(rect) =>
-                          commitComponentPosition(component.id, rect)
-                        }
-                        onCommitRect={(rect) =>
-                          commitComponentRect(component.id, rect)
-                        }
-                        onUpdatePosition={(left, top) =>
-                          updateComponentPosition(component.id, left, top)
-                        }
-                        onUpdateRect={(rect) =>
-                          updateComponentRect(component.id, rect)
-                        }
-                      />
-                    ),
-                  )
-                )}
+                ) : null}
+                <div
+                  className="page-canvas"
+                  style={getPageCanvasStyle(pageSetting)}
+                >
+                  {components.length === 0 ? (
+                    <Empty
+                      description="从左侧添加一个组件"
+                      image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    />
+                  ) : (
+                    components.map((component, index) =>
+                      component.isHidden ? null : (
+                        <CanvasElement
+                          active={component.id === currentElement}
+                          canvasZoom={canvasZoom}
+                          component={component}
+                          key={component.id}
+                          layerIndex={index}
+                          onRemove={() => removeComponent(component.id)}
+                          onSelect={() => selectComponent(component.id)}
+                          onCommitPosition={(rect) =>
+                            commitComponentPosition(component.id, rect)
+                          }
+                          onCommitRect={(rect) =>
+                            commitComponentRect(component.id, rect)
+                          }
+                          onUpdatePosition={(left, top) =>
+                            updateComponentPosition(component.id, left, top)
+                          }
+                          onUpdateRect={(rect) =>
+                            updateComponentRect(component.id, rect)
+                          }
+                        />
+                      ),
+                    )
+                  )}
+                </div>
               </div>
             </div>
         </Content>
@@ -316,7 +611,89 @@ function EditorPage() {
             />
         </Sider>
       </Layout>
+      <WorkMetaModal
+        open={metaModalOpen}
+        pendingSave={pendingSave}
+        pendingPublish={pendingPublish}
+        value={workMeta}
+        onChange={setWorkMeta}
+        onCancel={() => {
+          setMetaModalOpen(false)
+          setPendingSave(false)
+          setPendingPublish(false)
+        }}
+        onOk={handleMetaModalOk}
+      />
     </Content>
+  )
+}
+
+interface WorkMetaModalProps {
+  open: boolean
+  pendingSave: boolean
+  pendingPublish: boolean
+  value: typeof defaultWorkMeta
+  onCancel: () => void
+  onChange: (value: typeof defaultWorkMeta) => void
+  onOk: () => void
+}
+
+function WorkMetaModal({
+  open,
+  pendingSave,
+  pendingPublish,
+  value,
+  onCancel,
+  onChange,
+  onOk,
+}: WorkMetaModalProps) {
+  return (
+    <Modal
+      title={pendingPublish ? '发布前完善作品信息' : '作品设置'}
+      open={open}
+      okText={
+        pendingPublish ? '保存并发布' : pendingSave ? '保存作品' : '保存设置'
+      }
+      cancelText="取消"
+      onCancel={onCancel}
+      onOk={onOk}
+    >
+      <Form layout="vertical" className="work-meta-form">
+        <Form.Item label="作品标题" required>
+          <Input
+            maxLength={60}
+            showCount
+            placeholder="请输入作品标题"
+            value={value.title}
+            onChange={(event) =>
+              onChange({ ...value, title: event.target.value })
+            }
+          />
+        </Form.Item>
+        <Form.Item label="作品描述">
+          <Input.TextArea
+            autoSize={{ minRows: 3, maxRows: 5 }}
+            maxLength={160}
+            showCount
+            placeholder="给运营和作品列表看的简短描述"
+            value={value.desc}
+            onChange={(event) =>
+              onChange({ ...value, desc: event.target.value })
+            }
+          />
+        </Form.Item>
+        <Form.Item label="封面图片 URL">
+          <Input
+            allowClear
+            placeholder="https://example.com/cover.png"
+            value={value.coverImg}
+            onChange={(event) =>
+              onChange({ ...value, coverImg: event.target.value })
+            }
+          />
+        </Form.Item>
+      </Form>
+    </Modal>
   )
 }
 
@@ -454,6 +831,7 @@ function ImageUploadEntry({ onUploaded }: ImageUploadEntryProps) {
 
 interface CanvasElementProps {
   active: boolean
+  canvasZoom: number
   component: ComponentData
   layerIndex: number
   onCommitPosition: (rect: { left: number; top: number }) => void
@@ -496,6 +874,7 @@ interface ResizeState {
   pageHeight: number
   minWidth: number
   minHeight: number
+  zoom: number
 }
 
 const resizeHandles: Array<{ direction: ResizeDirection; label: string }> = [
@@ -507,6 +886,7 @@ const resizeHandles: Array<{ direction: ResizeDirection; label: string }> = [
 
 function CanvasElement({
   active,
+  canvasZoom,
   component,
   layerIndex,
   onCommitPosition,
@@ -554,11 +934,15 @@ function CanvasElement({
       startTop: Number(props.top),
       maxLeft: Math.max(
         0,
-        Math.floor(pageCanvasRect.width - elementRect.width),
+        Math.floor(
+          (pageCanvasRect.width - elementRect.width) / canvasZoom,
+        ),
       ),
       maxTop: Math.max(
         0,
-        Math.floor(pageCanvasRect.height - elementRect.height),
+        Math.floor(
+          (pageCanvasRect.height - elementRect.height) / canvasZoom,
+        ),
       ),
     }
 
@@ -575,12 +959,18 @@ function CanvasElement({
 
     event.preventDefault()
     const nextLeft = clamp(
-      Math.round(dragState.startLeft + event.clientX - dragState.startClientX),
+      Math.round(
+        dragState.startLeft +
+          (event.clientX - dragState.startClientX) / canvasZoom,
+      ),
       0,
       dragState.maxLeft,
     )
     const nextTop = clamp(
-      Math.round(dragState.startTop + event.clientY - dragState.startClientY),
+      Math.round(
+        dragState.startTop +
+          (event.clientY - dragState.startClientY) / canvasZoom,
+      ),
       0,
       dragState.maxTop,
     )
@@ -634,10 +1024,11 @@ function CanvasElement({
         startTop: Number(props.top),
         startWidth: Number(props.width),
         startHeight: Number(props.height),
-        pageWidth: Math.floor(pageCanvasRect.width),
-        pageHeight: Math.floor(pageCanvasRect.height),
+        pageWidth: Math.floor(pageCanvasRect.width / canvasZoom),
+        pageHeight: Math.floor(pageCanvasRect.height / canvasZoom),
         minWidth: 40,
         minHeight: 20,
+        zoom: canvasZoom,
       }
 
       const resizeHandle = event.currentTarget
@@ -769,8 +1160,8 @@ function calculateResizeRect(
   clientX: number,
   clientY: number,
 ): ComponentRect {
-  const deltaX = Math.round(clientX - state.startClientX)
-  const deltaY = Math.round(clientY - state.startClientY)
+  const deltaX = Math.round((clientX - state.startClientX) / state.zoom)
+  const deltaY = Math.round((clientY - state.startClientY) / state.zoom)
   const movesLeft = state.direction.includes('w')
   const movesTop = state.direction.includes('n')
   const maxWidth = movesLeft
@@ -825,6 +1216,90 @@ function getPageCanvasStyle(pageSetting: PageSetting): CSSProperties {
     backgroundSize: pageSetting.backgroundSize,
     backgroundPosition: 'center',
   }
+}
+
+function getPageCanvasViewportStyle(
+  pageSetting: PageSetting,
+  canvasZoom: number,
+): CSSProperties {
+  return {
+    width: 375 * canvasZoom,
+    height: pageSetting.height * canvasZoom,
+    ['--canvas-zoom' as string]: canvasZoom,
+  }
+}
+
+function createWorkContent(
+  components: ComponentData[],
+  pageSetting: PageSetting,
+): WorkContent {
+  return {
+    components: components.map(cloneWorkComponent),
+    props: { ...pageSetting },
+  }
+}
+
+function cloneWorkComponent(component: ComponentData): ComponentData {
+  const clonedComponent: ComponentData = {
+    ...component,
+    props: { ...component.props },
+  }
+
+  if (component.events) {
+    clonedComponent.events = {
+      ...(component.events.click
+        ? { click: component.events.click.map((event) => ({ ...event })) }
+        : {}),
+    }
+  }
+
+  return clonedComponent
+}
+
+function normalizeWorkMeta(meta: typeof defaultWorkMeta) {
+  return {
+    title: meta.title.trim(),
+    desc: meta.desc.trim(),
+    coverImg: meta.coverImg.trim(),
+  }
+}
+
+const legacyDefaultWorkTitle = '未命名作品'
+
+function hasMeaningfulWorkTitle(title: string) {
+  const normalizedTitle = title.trim()
+  return Boolean(normalizedTitle) && normalizedTitle !== legacyDefaultWorkTitle
+}
+
+function createWorkSnapshot(
+  meta: ReturnType<typeof normalizeWorkMeta>,
+  content: WorkContent,
+) {
+  return JSON.stringify({
+    meta: normalizeWorkMeta(meta),
+    content,
+  })
+}
+
+function getSaveStatusMeta(status: SaveStatus) {
+  const statusMap: Record<SaveStatus, { color: string; label: string }> = {
+    idle: { color: 'default', label: '新作品' },
+    dirty: { color: 'gold', label: '未保存' },
+    saving: { color: 'processing', label: '保存中' },
+    saved: { color: 'green', label: '已保存' },
+    publishing: { color: 'processing', label: '发布中' },
+    published: { color: 'blue', label: '发布成功' },
+    error: { color: 'red', label: '保存失败' },
+  }
+
+  return statusMap[status]
+}
+
+function formatSaveTime(value: string) {
+  return `最近保存 ${new Intl.DateTimeFormat('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value))}`
 }
 
 interface SettingsPanelProps {

@@ -2,8 +2,9 @@ import { randomUUID } from 'node:crypto'
 
 import { Injectable, NotFoundException } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
-import { isValidObjectId, type Model } from 'mongoose'
+import { isValidObjectId, Types, type Model } from 'mongoose'
 
+import type { AuthUser } from '../users/users.service'
 import { type CreateWorkDto } from './dto/create-work.dto'
 import { type ListWorksDto } from './dto/list-works.dto'
 import { type UpdateWorkDto } from './dto/update-work.dto'
@@ -13,10 +14,6 @@ import {
   type WorkDocument,
   WorkStatus,
 } from './schemas/work.schema'
-
-const mockUser = {
-  author: 'mock-user',
-}
 
 const defaultContent = (): WorkContent => ({
   components: [],
@@ -31,28 +28,31 @@ export class WorksService {
     @InjectModel(Work.name) private readonly workModel: Model<WorkDocument>,
   ) {}
 
-  async create(createWorkDto: CreateWorkDto) {
+  async create(createWorkDto: CreateWorkDto, currentUser: AuthUser) {
     const work = await this.workModel.create({
       uuid: randomUUID(),
-      title: createWorkDto.title ?? '未命名作品',
+      title: createWorkDto.title ?? '',
       desc: createWorkDto.desc ?? '',
       content: createWorkDto.content ?? defaultContent(),
-      author: mockUser.author,
+      author: getAuthorName(currentUser),
       coverImg: createWorkDto.coverImg ?? '',
       status: createWorkDto.status ?? WorkStatus.Unpublished,
       isTemplate: createWorkDto.isTemplate ?? false,
       isHot: createWorkDto.isHot ?? false,
       copiedCount: 0,
       isPublic: createWorkDto.isPublic ?? false,
+      user: new Types.ObjectId(currentUser.id),
     })
 
     return work.toObject()
   }
 
-  async findAll(query: ListWorksDto) {
+  async findAll(query: ListWorksDto, currentUser: AuthUser) {
     const page = query.page ?? 1
     const pageSize = Math.min(query.pageSize ?? 20, 100)
-    const filter: WorkFilter = {}
+    const filter: WorkFilter = {
+      user: new Types.ObjectId(currentUser.id),
+    }
 
     if (query.status === undefined) {
       filter.status = { $ne: WorkStatus.Deleted }
@@ -83,12 +83,12 @@ export class WorksService {
     }
   }
 
-  async findOne(id: string) {
-    return this.findWorkByIdentity(id)
+  async findOne(id: string, currentUser: AuthUser) {
+    return this.findWorkByIdentity(id, currentUser)
   }
 
-  async update(id: string, updateWorkDto: UpdateWorkDto) {
-    const work = await this.findWorkByIdentity(id)
+  async update(id: string, updateWorkDto: UpdateWorkDto, currentUser: AuthUser) {
+    const work = await this.findWorkByIdentity(id, currentUser)
 
     if (updateWorkDto.title !== undefined) work.title = updateWorkDto.title
     if (updateWorkDto.desc !== undefined) work.desc = updateWorkDto.desc
@@ -107,8 +107,8 @@ export class WorksService {
     return work.toObject()
   }
 
-  async publish(id: string) {
-    const work = await this.findWorkByIdentity(id)
+  async publish(id: string, currentUser: AuthUser) {
+    const work = await this.findWorkByIdentity(id, currentUser)
 
     work.publishedContent = work.content
     work.status = WorkStatus.Published
@@ -118,8 +118,8 @@ export class WorksService {
     return work.toObject()
   }
 
-  async copy(id: string) {
-    const source = await this.findWorkByIdentity(id)
+  async copy(id: string, currentUser: AuthUser) {
+    const source = await this.findWorkByIdentity(id, currentUser)
 
     const copied = await this.workModel.create({
       uuid: randomUUID(),
@@ -127,13 +127,14 @@ export class WorksService {
       desc: source.desc,
       content: source.content,
       publishedContent: null,
-      author: mockUser.author,
+      author: getAuthorName(currentUser),
       coverImg: source.coverImg,
       status: WorkStatus.Unpublished,
       isTemplate: false,
       isHot: false,
       copiedCount: 0,
       isPublic: false,
+      user: new Types.ObjectId(currentUser.id),
     })
 
     source.copiedCount += 1
@@ -142,8 +143,8 @@ export class WorksService {
     return copied.toObject()
   }
 
-  async softDelete(id: string) {
-    const work = await this.findWorkByIdentity(id)
+  async softDelete(id: string, currentUser: AuthUser) {
+    const work = await this.findWorkByIdentity(id, currentUser)
 
     work.status = WorkStatus.Deleted
     await work.save()
@@ -151,8 +152,8 @@ export class WorksService {
     return work.toObject()
   }
 
-  async restore(id: string) {
-    const work = await this.findWorkByIdentity(id)
+  async restore(id: string, currentUser: AuthUser) {
+    const work = await this.findWorkByIdentity(id, currentUser)
 
     work.status = WorkStatus.Unpublished
     await work.save()
@@ -160,10 +161,14 @@ export class WorksService {
     return work.toObject()
   }
 
-  private async findWorkByIdentity(id: string) {
-    const filter: WorkFilter = isValidObjectId(id)
+  private async findWorkByIdentity(id: string, currentUser: AuthUser) {
+    const identityFilter = isValidObjectId(id)
       ? { $or: [{ _id: id }, { uuid: id }] }
       : { uuid: id }
+    const filter: WorkFilter = {
+      ...identityFilter,
+      user: new Types.ObjectId(currentUser.id),
+    }
 
     const work = await this.workModel.findOne(filter).exec()
 
@@ -173,4 +178,8 @@ export class WorksService {
 
     return work
   }
+}
+
+function getAuthorName(currentUser: AuthUser) {
+  return currentUser.nickName || currentUser.username || currentUser.phoneNumber
 }

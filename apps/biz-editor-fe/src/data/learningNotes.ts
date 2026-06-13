@@ -1063,4 +1063,151 @@ export const learningNotes: LearningNote[] = [
     nextStep:
       '接入真实用户鉴权，将 mock 用户替换为登录态用户，并继续开发模板筛选和 H5 公开访问接口。',
   },
+  {
+    id: 'frontend-works-api-plan',
+    category: '实施计划',
+    title: '前端 Works API 接入与请求层封装计划',
+    summary:
+      '使用 fetch + TanStack Query 接入 Works API，让编辑器具备真实创建、保存、发布能力，作品页展示真实数据。',
+    background:
+      '后端 WorksModule 已经打通 MongoDB 落库，前端下一步需要从本地编辑器 demo 进入真实作品生产系统。请求封装不能只解决发请求，还要明确服务端状态、本地编辑状态和作品 JSON 协议之间的边界。',
+    goals: [
+      '新增统一请求层，集中管理 baseURL、JSON、query params 和错误处理。',
+      '新增 Works 类型，明确 WorkStatus、WorkContent、Work 和分页结果结构。',
+      '用 TanStack Query 管理作品列表、详情和 mutation 后刷新。',
+      '编辑器保存和发布调用真实后端接口。',
+      '作品列表页展示真实 MongoDB 数据，并支持编辑、复制、软删除和恢复。',
+      '把本次方案沉淀到开发记录，方便项目结束时回顾请求层设计。',
+    ],
+    decision:
+      '不引入 axios，使用原生 fetch 做薄封装；服务端状态交给 TanStack Query，本地画布编辑状态继续交给 Zustand。',
+    keyDesigns: [
+      'src/api/http.ts 提供 request<T>()，后续服务端响应格式变化时只改这一层。',
+      'src/api/types.ts 定义 WorkStatus、WorkContent、Work、PageResult 和作品创建/更新参数。',
+      'src/api/works.ts 同时提供 API 函数和 React Query hooks。',
+      'queryKey 约定为 works 列表和 work 详情两类，mutation 成功后刷新 works 列表并写入详情缓存。',
+      'WorkContent 使用 { components, props: pageSetting }，和最早讨论的作品 JSON 结构保持一致。',
+      '/editor 是新建作品入口，/editor/:workId 是编辑已有作品入口。',
+    ],
+    implementation:
+      '计划已落地。当前已新增 API 层、Works hooks、编辑器保存/发布接入、作品列表真实数据展示和本条开发记录。',
+    implementationDetails: [
+      '新增 request<T>()，默认 VITE_API_BASE_URL 为 http://127.0.0.1:7001/api。',
+      '新增 useWorksQuery、useWorkQuery、useCreateWorkMutation、useUpdateWorkMutation、usePublishWorkMutation、useCopyWorkMutation、useDeleteWorkMutation 和 useRestoreWorkMutation。',
+      'editor store 新增 loadWorkContent 和 resetEditor，用于从服务端恢复作品或进入新建状态。',
+      '编辑器保存时没有 workId 先创建作品并跳转 /editor/:uuid，有 workId 时执行 PATCH 保存。',
+      '发布会先保存当前内容，再调用 publish 接口，确保 publishedContent 使用最新草稿。',
+      'WorksPage 新增正常作品和已删除视图，删除后可以在已删除视图中恢复。',
+    ],
+    tests: [
+      '创建作品返回 uuid，前端跳转到 /editor/:uuid。',
+      '保存后详情接口可以看到最新 content。',
+      '发布后 publishedContent 有值且 status=2。',
+      '/works 能展示真实作品列表。',
+      '点击编辑进入 /editor/:uuid 并恢复组件和页面设置。',
+      '复制、删除、恢复操作成功后列表刷新。',
+      'biz-editor-fe typecheck 和 build 通过。',
+    ],
+    nextStep:
+      '补作品标题编辑、保存状态提示、接口错误态细化，并在接入登录后把 mock 用户替换为真实用户。',
+  },
+  {
+    id: 'work-meta-save-status-plan',
+    category: '实施计划',
+    title: '作品元信息、保存状态与发布前校验计划',
+    summary:
+      '把作品标题、描述和封面作为 Work 元信息处理，保存和发布前统一校验并提交。',
+    background:
+      '作品标题不属于画布渲染内容，如果塞进 content 会污染 H5 渲染协议；但发布和作品列表又必须依赖标题，所以需要把它放在作品元信息层统一维护。',
+    goals: [
+      '编辑器可以修改作品标题、描述和封面 URL。',
+      '默认的未命名作品只作为占位，保存和发布前必须改成明确标题。',
+      '保存新作品和已有作品时都提交元信息和 content。',
+      '发布前校验作品标题，标题缺失时先打开作品设置。',
+      '工具栏展示未保存、保存中、已保存、发布中、发布成功和保存失败状态。',
+      '接口错误文案能区分网络失败、参数错误、资源不存在和服务端错误。',
+      '为后续登录态接入预留真实用户替换 mock 用户的边界。',
+    ],
+    decision:
+      'title、desc、coverImg 作为 Work 顶层元信息；content 只保存 components、pageSetting 和后续页面 setting；publish 接口只负责发布快照和状态变更。',
+    keyDesigns: [
+      'EditorPage 内维护 workMeta，不放进 Zustand 画布状态。',
+      'saveCurrentWork 统一组装 { title, desc, coverImg, content }。',
+      '发布流程先保存当前草稿和元信息，再调用 publish。',
+      '保存状态通过当前快照和最近一次保存快照比较得出。',
+      '请求错误通过 src/api/error.ts 统一转换为用户可读文案。',
+      '后续登录接入后，前端不传 author，后端从当前用户生成 author 和 user 字段。',
+    ],
+    implementation:
+      '计划已落地。当前编辑器已支持作品设置弹窗、保存状态提示、发布前标题校验和统一接口错误文案。',
+    implementationDetails: [
+      '新增作品设置弹窗，字段包含标题、描述和封面图片 URL。',
+      '新作品默认标题为未命名作品，已有作品从详情接口恢复元信息。',
+      '保存新作品会创建后跳转 /editor/:uuid，保存已有作品会 PATCH 当前 uuid。',
+      '发布前如果标题为空，会打开作品设置弹窗并阻止直接发布。',
+      '保存前如果标题仍是未命名作品，也会打开作品设置并阻止直接保存。',
+      '全局 Header 移除预览和保存按钮，编辑器内工具栏成为唯一保存和预览入口。',
+      '作品列表加载失败时展示错误提示和重试按钮。',
+      '统一 getRequestErrorMessage，按 HTTP status 映射错误文案。',
+    ],
+    tests: [
+      '新建作品填写标题后保存，作品列表显示真实标题。',
+      '编辑已有作品标题后保存，刷新详情仍能恢复标题。',
+      '清空标题后发布会打开设置弹窗，不直接发布。',
+      '发布成功后 status=2，并且 publishedContent 有当前内容快照。',
+      '后端未启动时展示网络连接失败提示。',
+      'biz-editor-fe typecheck 和 build 通过。',
+      'biz-editor-server typecheck 和 build 通过。',
+    ],
+    nextStep:
+      '接入 AuthModule 后移除 mock 用户，使用登录态用户生成作品 author 和 user 归属。',
+  },
+  {
+    id: 'auth-module-work-ownership-plan',
+    category: '实施计划',
+    title: 'AuthModule 与作品归属接入计划',
+    summary:
+      '先做最小可用手机号登录和作品归属，把 Works API 从 mock-user 迁移到真实登录态用户。',
+    background:
+      'Works API 已经进入真实 MongoDB 数据阶段，如果继续使用 mock-user，后续作品列表、删除恢复、模板复用和管理后台都会缺少用户边界。',
+    goals: [
+      '新增 UsersModule，保存手机号用户基础信息。',
+      '新增 AuthModule，支持发送 mock 验证码、手机号登录和获取当前用户。',
+      '前端保存 token，并在请求层统一注入 Authorization。',
+      '作品创建、列表、详情、保存、发布、复制、删除和恢复都基于当前用户归属。',
+      '提供旧 mock 作品迁移命令，避免已有开发数据丢失可见性。',
+    ],
+    decision:
+      '一期不接真实短信平台，也不做 RBAC；先用 mock 验证码和轻量 JWT 结构跑通登录闭环，WorksService 不再接受前端作者字段。',
+    keyDesigns: [
+      'User 模型保留 username、nickName、picture、phoneNumber、city、type、provider 和 oauthID。',
+      'Auth token 使用 Bearer 方式传递，前端 request<T>() 统一注入。',
+      'AuthGuard 校验 token 后向 request.user 写入 CurrentUser。',
+      'WorksController 整体加 AuthGuard，所有作品操作都需要登录。',
+      'WorksService 查询条件增加 user，默认只返回当前用户自己的作品。',
+      'author 存用户昵称快照，user 存 MongoDB User ObjectId。',
+    ],
+    implementation:
+      '计划已落地。当前已新增 UsersModule、AuthModule、AuthGuard、前端登录弹窗、token 注入和 Works 归属过滤。',
+    implementationDetails: [
+      '新增 /api/auth/send-code，开发环境返回 mockCode。',
+      '新增 /api/auth/login-by-phone，验证码正确后自动创建手机号用户并返回 token。',
+      '新增 /api/auth/me，返回当前登录用户。',
+      'WorksService 创建和复制作品时使用当前用户写入 author 和 user。',
+      'WorksService 列表和详情按当前用户过滤，未登录请求返回 401。',
+      '新增 migrate:mock-user 命令，用默认开发手机号接管旧 mock-user 作品。',
+      '前端 Header 新增登录入口、用户展示和退出登录。',
+    ],
+    tests: [
+      '未登录访问作品接口返回 401，前端展示登录过期提示。',
+      '手机号和 mock 验证码登录成功后，Header 展示当前用户。',
+      '登录后创建作品，MongoDB 中 author 和 user 来源于当前用户。',
+      '作品列表只展示当前用户自己的作品。',
+      '执行 mock 迁移命令后，旧 mock-user 作品归属到默认开发用户。',
+      'biz-editor-fe typecheck 和 build 通过。',
+      'biz-editor-server typecheck 和 build 通过。',
+    ],
+    nextStep:
+      '后续接真实短信服务，并在管理后台阶段扩展管理员角色、冻结用户和跨用户作品治理权限。',
+  },
 ]

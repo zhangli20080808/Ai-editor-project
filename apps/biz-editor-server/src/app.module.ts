@@ -5,7 +5,9 @@ import { MongooseModule } from '@nestjs/mongoose'
 import configuration, {
   type AppConfiguration,
 } from './config/configuration'
+import { AuthModule } from './modules/auth/auth.module'
 import { HealthModule } from './modules/health/health.module'
+import { UsersModule } from './modules/users/users.module'
 import { WorksModule } from './modules/works/works.module'
 
 @Module({
@@ -24,6 +26,8 @@ import { WorksModule } from './modules/works/works.module'
       }),
     }),
     HealthModule,
+    UsersModule,
+    AuthModule,
     WorksModule,
   ],
 })

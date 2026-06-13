@@ -1,11 +1,27 @@
-import { Navigate, NavLink, Route, Routes } from 'react-router'
-import { Button, Layout, Space, Typography } from 'antd'
-import { BookOpen, FileText, LayoutTemplate, PenTool } from 'lucide-react'
+import {
+  Navigate,
+  NavLink,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from 'react-router'
+import { useQueryClient } from '@tanstack/react-query'
+import { Button, Layout, Space, Typography, message } from 'antd'
+import { BookOpen, FileText, LayoutTemplate, LogOut, PenTool, User } from 'lucide-react'
+import { type PropsWithChildren, useEffect } from 'react'
 
 import EditorPage from './pages/EditorPage'
+import LoginPage from './pages/LoginPage'
 import NotesPage from './pages/NotesPage'
 import TemplatesPage from './pages/TemplatesPage'
 import WorksPage from './pages/WorksPage'
+import {
+  logout as logoutAuth,
+  useCurrentUserQuery,
+} from './api/auth'
+import { getAuthToken } from './api/authStorage'
+import { getRequestErrorMessage } from './api/error'
 import './App.css'
 
 const { Header } = Layout
@@ -19,6 +35,23 @@ const navItems = [
 ]
 
 function App() {
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const currentUserQuery = useCurrentUserQuery()
+  const currentUser = currentUserQuery.data
+
+  useEffect(() => {
+    if (currentUserQuery.error) {
+      logoutAuth(queryClient)
+      message.warning(getRequestErrorMessage(currentUserQuery.error))
+    }
+  }, [currentUserQuery.error, queryClient])
+
+  const handleLogout = () => {
+    logoutAuth(queryClient)
+    window.location.reload()
+  }
+
   return (
     <Layout className="app-shell">
       <Header className="app-header">
@@ -42,21 +75,82 @@ function App() {
           ))}
         </nav>
         <Space size={8} className="header-actions">
-          <Button>预览</Button>
-          <Button>保存</Button>
-          <Button type="primary">创建作品</Button>
+          {currentUser ? (
+            <Space size={8} className="header-user">
+              <User size={15} />
+              <span>{currentUser.nickName || currentUser.username}</span>
+              <Button
+                icon={<LogOut size={14} />}
+                size="small"
+                onClick={handleLogout}
+              >
+                退出
+              </Button>
+            </Space>
+          ) : (
+            <Button onClick={() => navigate('/login')}>登录</Button>
+          )}
+          <Button type="primary" onClick={() => navigate('/editor')}>
+            创建作品
+          </Button>
         </Space>
       </Header>
       <Routes>
-        <Route path="/" element={<Navigate to="/editor" replace />} />
-        <Route path="/editor" element={<EditorPage />} />
+        <Route path="/" element={<Navigate to="/notes" replace />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route
+          path="/editor"
+          element={
+            <ProtectedRoute>
+              <EditorPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/editor/:workId"
+          element={
+            <ProtectedRoute>
+              <EditorPage />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/notes" element={<NotesPage />} />
-        <Route path="/works" element={<WorksPage />} />
-        <Route path="/templates" element={<TemplatesPage />} />
-        <Route path="*" element={<Navigate to="/editor" replace />} />
+        <Route
+          path="/works"
+          element={
+            <ProtectedRoute>
+              <WorksPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/templates"
+          element={
+            <ProtectedRoute>
+              <TemplatesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="*" element={<Navigate to="/notes" replace />} />
       </Routes>
     </Layout>
   )
+}
+
+function ProtectedRoute({ children }: PropsWithChildren) {
+  const location = useLocation()
+
+  if (!getAuthToken()) {
+    const redirect = `${location.pathname}${location.search}`
+    return (
+      <Navigate
+        to={`/login?redirect=${encodeURIComponent(redirect)}`}
+        replace
+      />
+    )
+  }
+
+  return children
 }
 
 export default App

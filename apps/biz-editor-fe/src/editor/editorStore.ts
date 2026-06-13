@@ -4,16 +4,28 @@ import type {
   ComponentData,
   ComponentEventAction,
   ComponentEvents,
+  ComponentName,
   ComponentTemplate,
   ComponentProps,
   PageSetting,
 } from './types'
+import type { WorkContent } from '../api/types'
 import type { UploadedAsset } from './uploadService'
 
 const pageCanvasWidth = 375
 const pasteOffset = 16
 const maxHistoryLength = 50
 const historyMergeDelay = 300
+const minCanvasZoom = 0.5
+const maxCanvasZoom = 2
+const canvasZoomStep = 0.1
+const defaultPageSetting: PageSetting = {
+  backgroundColor: '#ffffff',
+  backgroundImage: '',
+  backgroundRepeat: 'no-repeat',
+  backgroundSize: 'cover',
+  height: 640,
+}
 
 type HistoryRecordType =
   | 'add'
@@ -92,7 +104,15 @@ interface EditorState {
   historyFuture: HistoryRecord[]
   lastHistoryMergeKey: string | null
   lastHistoryMergeTime: number
+  canvasZoom: number
   pageSetting: PageSetting
+  setCanvasZoom: (zoom: number) => void
+  zoomInCanvas: () => void
+  zoomOutCanvas: () => void
+  resetCanvasZoom: () => void
+  fitCanvasToView: (viewport: { width: number; height: number }) => void
+  loadWorkContent: (content: WorkContent) => void
+  resetEditor: () => void
   addComponent: (template: ComponentTemplate) => void
   addUploadedImage: (asset: UploadedAsset) => void
   copyCurrentComponent: () => void
@@ -148,12 +168,62 @@ export const useEditorStore = create<EditorState>()(
     historyFuture: [],
     lastHistoryMergeKey: null,
     lastHistoryMergeTime: 0,
-    pageSetting: {
-      backgroundColor: '#ffffff',
-      backgroundImage: '',
-      backgroundRepeat: 'no-repeat',
-      backgroundSize: 'cover',
-      height: 640,
+    canvasZoom: 1,
+    pageSetting: { ...defaultPageSetting },
+    setCanvasZoom: (zoom) => {
+      set((state) => {
+        state.canvasZoom = normalizeCanvasZoom(zoom)
+      })
+    },
+    zoomInCanvas: () => {
+      set((state) => {
+        state.canvasZoom = normalizeCanvasZoom(state.canvasZoom + canvasZoomStep)
+      })
+    },
+    zoomOutCanvas: () => {
+      set((state) => {
+        state.canvasZoom = normalizeCanvasZoom(state.canvasZoom - canvasZoomStep)
+      })
+    },
+    resetCanvasZoom: () => {
+      set((state) => {
+        state.canvasZoom = 1
+      })
+    },
+    fitCanvasToView: (viewport) => {
+      set((state) => {
+        const horizontalZoom = (viewport.width - 48) / pageCanvasWidth
+        const verticalZoom = (viewport.height - 48) / state.pageSetting.height
+        state.canvasZoom = normalizeCanvasZoom(
+          Math.min(horizontalZoom, verticalZoom, 1),
+        )
+      })
+    },
+    loadWorkContent: (content) => {
+      set((state) => {
+        state.components = normalizeLoadedComponents(content.components)
+        state.currentElement = null
+        state.copiedComponent = null
+        state.historyPast = []
+        state.historyFuture = []
+        state.lastHistoryMergeKey = null
+        state.lastHistoryMergeTime = 0
+        state.canvasZoom = 1
+        state.pageSetting = normalizePageSetting(content.props)
+      })
+    },
+    resetEditor: () => {
+      set((state) => {
+        state.components = []
+        state.currentElement = null
+        state.copiedComponent = null
+        state.historyPast = []
+        state.historyFuture = []
+        state.lastHistoryMergeKey = null
+        state.lastHistoryMergeTime = 0
+        state.canvasZoom = 1
+        state.pageSetting = { ...defaultPageSetting }
+      })
     },
     addComponent: (template) => {
       set((state) => {
@@ -1132,6 +1202,122 @@ function cloneValue<T>(value: T): T {
   return value
 }
 
+function normalizePageSetting(pageSetting: Partial<PageSetting>): PageSetting {
+  return {
+    ...defaultPageSetting,
+    ...pageSetting,
+    height:
+      typeof pageSetting.height === 'number'
+        ? pageSetting.height
+        : defaultPageSetting.height,
+  }
+}
+
+type RawComponentData = Partial<ComponentData> & {
+  tag?: unknown
+}
+
+function normalizeLoadedComponents(components: unknown[]): ComponentData[] {
+  return components
+    .map((component, index) =>
+      normalizeLoadedComponent(component as RawComponentData, index),
+    )
+    .filter(Boolean) as ComponentData[]
+}
+
+function normalizeLoadedComponent(
+  component: RawComponentData,
+  index: number,
+): ComponentData | null {
+  const name = component.name ?? component.tag
+  if (!isComponentName(name)) {
+    return null
+  }
+
+  const props = {
+    ...getFallbackProps(name, index),
+    ...(component.props ?? {}),
+  }
+  const normalizedComponent: ComponentData = {
+    id:
+      typeof component.id === 'string' && component.id
+        ? component.id
+        : createComponentId(),
+    name,
+    props,
+  }
+
+  if (component.layerName) {
+    normalizedComponent.layerName = component.layerName
+  }
+  if (component.isHidden !== undefined) {
+    normalizedComponent.isHidden = component.isHidden
+  }
+  if (component.isLocked !== undefined) {
+    normalizedComponent.isLocked = component.isLocked
+  }
+  if (component.events) {
+    normalizedComponent.events = cloneEvents(component.events)
+  }
+
+  return normalizedComponent
+}
+
+function isComponentName(name: unknown): name is ComponentName {
+  return name === 'l-text' || name === 'l-image' || name === 'l-button'
+}
+
+function getFallbackProps(
+  name: ComponentName,
+  index: number,
+): ComponentProps {
+  const offset = index * 16
+
+  if (name === 'l-image') {
+    return {
+      label: '图片',
+      left: 32 + offset,
+      top: 96 + offset,
+      width: 280,
+      height: 160,
+      src: '',
+      alt: '图片',
+      objectFit: 'cover',
+      borderRadius: 0,
+    }
+  }
+
+  if (name === 'l-button') {
+    return {
+      label: '按钮',
+      left: 96 + offset,
+      top: 160 + offset,
+      width: 160,
+      height: 44,
+      text: '按钮内容',
+      color: '#ffffff',
+      backgroundColor: '#ff5a3c',
+      fontSize: 16,
+      borderRadius: 4,
+    }
+  }
+
+  return {
+    label: '文本',
+    left: 32 + offset,
+    top: 32 + offset,
+    width: 220,
+    height: 56,
+    text: '文本内容',
+    color: '#1f2329',
+    fontSize: 20,
+    fontWeight: 'normal',
+    fontFamily: 'system-ui',
+    lineHeight: 1.5,
+    textAlign: 'left',
+  }
+}
+
 function isSameValue(left: unknown, right: unknown) {
   return JSON.stringify(left) === JSON.stringify(right)
 }
@@ -1142,4 +1328,10 @@ function sameArray(left: string[], right: string[]) {
 
 function clampNumber(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max)
+}
+
+function normalizeCanvasZoom(zoom: number) {
+  return Number(
+    clampNumber(zoom, minCanvasZoom, maxCanvasZoom).toFixed(2),
+  )
 }
