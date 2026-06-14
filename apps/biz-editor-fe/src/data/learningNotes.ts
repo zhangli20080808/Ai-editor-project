@@ -1210,4 +1210,53 @@ export const learningNotes: LearningNote[] = [
     nextStep:
       '后续接真实短信服务，并在管理后台阶段扩展管理员角色、冻结用户和跨用户作品治理权限。',
   },
+  {
+    id: 'h5-nextjs-ssr-plan',
+    category: '实施计划',
+    title: 'H5 展示端 Next.js SSR 方案',
+    summary:
+      '使用 Next.js 初始化 h5-server，通过 /p/[uuid] 公开访问已发布作品，只渲染 publishedContent。',
+    background:
+      'B 端已经具备登录、创建、保存和发布能力，但发布后的作品还没有真实访问入口。H5 端需要优先保证首屏、分享和 URL 稳定，因此选择 SSR。',
+    goals: [
+      '初始化 apps/h5-server 为 Next.js + React 19 + TypeScript 应用。',
+      '新增 /p/[uuid] H5 公开访问路由。',
+      '新增 Nest 公开接口 /api/public/works/:uuid。',
+      'H5 只读取 publishedContent，不读取草稿 content。',
+      '已发布作品可访问，未发布、删除、强制下线或不存在作品展示不可访问页。',
+      'B 端发布成功后提示稳定 H5 访问地址。',
+    ],
+    decision:
+      'H5 使用 Next.js SSR，但继续通过 biz-editor-server 公开 API 获取作品数据，不直连 MongoDB，也不替代现有 Nest API 服务。',
+    keyDesigns: [
+      'Next.js App Router 使用 app/p/[uuid]/page.tsx 承载 H5 页面。',
+      'H5 服务端组件通过 H5_API_BASE_URL 或默认 http://127.0.0.1:7001/api 拉取公开作品。',
+      '公开接口只返回 uuid、title、desc、coverImg、publishedContent 和发布时间等展示字段。',
+      'H5Renderer 根据 components 数组渲染组件，并用 left/top/width/height 绝对定位。',
+      '页面背景、高度、背景图来自 publishedContent.props。',
+      '业务组件库补齐 LText、LImage、LButton，供 H5 端复用。',
+    ],
+    implementation:
+      '计划已落地。当前 h5-server 已初始化为 Next.js 应用，公开接口和基础 H5 渲染器已完成。',
+    implementationDetails: [
+      '新增 h5-server package、Next 配置、全局布局和样式。',
+      '新增 /p/[uuid] 页面和 not-found 不可访问页。',
+      '新增 getPublishedWork，服务端 fetch /api/public/works/:uuid。',
+      '新增 H5Renderer，按作品 JSON 渲染文本、图片和按钮组件。',
+      'biz-components 新增 LImage 和 LButton 并导出。',
+      'B 端发布成功后提示 H5 URL。',
+    ],
+    tests: [
+      '已发布作品访问 /p/:uuid 可看到页面。',
+      '未发布、删除、强制下线或不存在作品访问 H5 显示不可访问。',
+      '修改草稿但不发布，H5 仍展示旧 publishedContent。',
+      '再次发布后，H5 展示最新发布快照。',
+      '文本、图片、按钮的定位和尺寸与编辑器一致。',
+      'h5-server typecheck 和 build 通过。',
+      'biz-editor-server typecheck 和 build 通过。',
+      'biz-components build 通过。',
+    ],
+    nextStep:
+      '将编辑器画布也逐步切到业务组件库的 LImage 和 LButton，并补 H5 访问 URL 的复制/预览入口。',
+  },
 ]

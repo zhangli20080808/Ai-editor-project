@@ -108,6 +108,9 @@ const pageColorPresets = [
   '#1677ff',
   '#52c41a',
 ]
+const h5BaseUrl =
+  import.meta.env.VITE_H5_BASE_URL?.replace(/\/$/, '') ??
+  'http://127.0.0.1:7002'
 const defaultWorkMeta = {
   title: '',
   desc: '',
@@ -315,7 +318,7 @@ function EditorPage() {
       await publishWorkMutation.mutateAsync(savedWork.uuid)
       setSaveStatus('published')
       setLastSavedAt(new Date().toISOString())
-      message.success('作品发布成功')
+      message.success(`作品发布成功：${h5BaseUrl}/p/${savedWork.uuid}`)
     } catch (error) {
       setSaveStatus('error')
       message.error(getRequestErrorMessage(error))

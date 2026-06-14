@@ -1,2 +1,6 @@
+export { LButton } from './button/LButton'
+export type { LButtonProps } from './button/types'
+export { LImage } from './image/LImage'
+export type { LImageProps } from './image/types'
 export { LText } from './text/LText'
 export type { LTextProps } from './text/types'

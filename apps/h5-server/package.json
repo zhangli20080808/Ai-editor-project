@@ -1,0 +1,24 @@
+{
+  "name": "h5-server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev -p 7002",
+    "build": "next build",
+    "start": "next start -p 7002",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@zhangli2008/ai-editor-components": "workspace:*",
+    "next": "^16.2.9",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.3",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "~6.0.2"
+  }
+}

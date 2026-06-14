@@ -161,6 +161,26 @@ export class WorksService {
     return work.toObject()
   }
 
+  async findPublishedByUuid(uuid: string) {
+    const work = await this.workModel
+      .findOne({
+        uuid,
+        status: WorkStatus.Published,
+        publishedContent: { $ne: null },
+      })
+      .select(
+        'uuid title desc coverImg status publishedContent latestPublishAt updatedAt',
+      )
+      .lean()
+      .exec()
+
+    if (!work) {
+      throw new NotFoundException('作品不存在或未发布')
+    }
+
+    return work
+  }
+
   private async findWorkByIdentity(id: string, currentUser: AuthUser) {
     const identityFilter = isValidObjectId(id)
       ? { $or: [{ _id: id }, { uuid: id }] }
