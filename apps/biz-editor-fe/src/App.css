@@ -335,6 +335,44 @@
   border-radius: 999px;
 }
 
+.h5-preview-modal .ant-modal-body {
+  display: flex;
+  justify-content: center;
+  max-height: min(76vh, 760px);
+  overflow: auto;
+  background: #f4f6f8;
+}
+
+.h5-preview-frame {
+  width: 375px;
+  min-height: 667px;
+  overflow: hidden;
+  border: 1px solid #d9dee8;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.14);
+}
+
+.h5-preview-page {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+
+.h5-preview-component {
+  position: absolute;
+  box-sizing: border-box;
+}
+
+.h5-preview-empty {
+  display: flex;
+  min-height: 240px;
+  align-items: center;
+  justify-content: center;
+  color: #8c8c8c;
+  font-size: 14px;
+}
+
 .canvas-stage {
   position: relative;
   display: flex;

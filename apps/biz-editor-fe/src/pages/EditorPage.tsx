@@ -87,6 +87,7 @@ import {
 } from '../api/works'
 import type { WorkContent } from '../api/types'
 import { getRequestErrorMessage } from '../api/error'
+import { H5PreviewRenderer } from '../components/H5PreviewRenderer'
 import '../App.css'
 
 const { Content, Sider } = Layout
@@ -176,6 +177,7 @@ function EditorPage() {
   const [metaModalOpen, setMetaModalOpen] = useState(false)
   const [pendingSave, setPendingSave] = useState(false)
   const [pendingPublish, setPendingPublish] = useState(false)
+  const [previewModalOpen, setPreviewModalOpen] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null)
   const saving = saveStatus === 'saving' || saveStatus === 'publishing'
@@ -508,7 +510,9 @@ function EditorPage() {
                   >
                     作品设置
                   </Button>
-                  <Button size="small">预览</Button>
+                  <Button size="small" onClick={() => setPreviewModalOpen(true)}>
+                    预览
+                  </Button>
                   <Button
                     loading={saveStatus === 'saving'}
                     size="small"
@@ -627,6 +631,19 @@ function EditorPage() {
         }}
         onOk={handleMetaModalOk}
       />
+      <Modal
+        centered
+        className="h5-preview-modal"
+        footer={null}
+        open={previewModalOpen}
+        title="草稿预览"
+        width={430}
+        onCancel={() => setPreviewModalOpen(false)}
+      >
+        <H5PreviewRenderer
+          content={createWorkContent(components, pageSetting)}
+        />
+      </Modal>
     </Content>
   )
 }

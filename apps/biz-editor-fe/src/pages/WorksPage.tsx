@@ -19,6 +19,7 @@ import {
 import {
   Copy,
   FileText,
+  MonitorUp,
   Pencil,
   RotateCcw,
   Trash2,
@@ -34,6 +35,9 @@ import { WorkStatus, type Work } from '../api/types'
 import { getRequestErrorMessage } from '../api/error'
 
 const { Paragraph, Text, Title } = Typography
+const h5BaseUrl =
+  import.meta.env.VITE_H5_BASE_URL?.replace(/\/$/, '') ??
+  'http://127.0.0.1:7002'
 
 const statusMeta: Record<WorkStatus, { color: string; label: string }> = {
   [WorkStatus.Deleted]: { color: 'default', label: '已删除' },
@@ -75,6 +79,15 @@ function WorksPage() {
     } finally {
       setActionWorkId(null)
     }
+  }
+
+  const previewWork = (work: Work) => {
+    if (work.status !== WorkStatus.Published) {
+      message.info('作品发布后才可以预览线上页面')
+      return
+    }
+
+    window.open(`${h5BaseUrl}/p/${work.uuid}`, '_blank', 'noopener,noreferrer')
   }
 
   const columns: TableProps<Work>['columns'] = [
@@ -120,7 +133,7 @@ function WorksPage() {
     {
       title: '操作',
       key: 'actions',
-      width: mode === 'deleted' ? 140 : 260,
+      width: mode === 'deleted' ? 140 : 320,
       render: (_, work) =>
         mode === 'deleted' ? (
           <Button
@@ -147,6 +160,15 @@ function WorksPage() {
               onClick={() => navigate(`/editor/${work.uuid}`)}
             >
               编辑
+            </Button>
+            <Button
+              disabled={work.status !== WorkStatus.Published}
+              icon={<MonitorUp size={14} />}
+              size="small"
+              type="link"
+              onClick={() => previewWork(work)}
+            >
+              预览
             </Button>
             <Button
               icon={<Copy size={14} />}
