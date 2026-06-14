@@ -40,3 +40,11 @@ export interface PublishedWork {
   latestPublishAt: string | null
   updatedAt: string
 }
+
+export type PublicWorkUnavailableCode =
+  | 'WORK_DELETED'
+  | 'WORK_FORCE_OFFLINE'
+  | 'WORK_NO_PUBLISHED_CONTENT'
+  | 'WORK_NOT_FOUND'
+  | 'WORK_UNPUBLISHED'
+  | 'WORK_UNAVAILABLE'

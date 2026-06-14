@@ -173,11 +173,7 @@ export class WorksService {
 
   async findPublishedByUuid(uuid: string) {
     const work = await this.workModel
-      .findOne({
-        uuid,
-        status: WorkStatus.Published,
-        publishedContent: { $ne: null },
-      })
+      .findOne({ uuid })
       .select(
         'uuid title desc coverImg status publishedContent latestPublishAt updatedAt',
       )
@@ -185,7 +181,42 @@ export class WorksService {
       .exec()
 
     if (!work) {
-      throw new NotFoundException('作品不存在或未发布')
+      throw new NotFoundException({
+        code: 'WORK_NOT_FOUND',
+        message: '作品不存在',
+      })
+    }
+
+    if (work.status === WorkStatus.Deleted) {
+      throw new NotFoundException({
+        code: 'WORK_DELETED',
+        message: '作品已删除',
+        status: work.status,
+      })
+    }
+
+    if (work.status === WorkStatus.ForceOffline) {
+      throw new NotFoundException({
+        code: 'WORK_FORCE_OFFLINE',
+        message: '作品已被管理员下线',
+        status: work.status,
+      })
+    }
+
+    if (work.status !== WorkStatus.Published) {
+      throw new NotFoundException({
+        code: 'WORK_UNPUBLISHED',
+        message: '作品尚未发布',
+        status: work.status,
+      })
+    }
+
+    if (!work.publishedContent) {
+      throw new NotFoundException({
+        code: 'WORK_NO_PUBLISHED_CONTENT',
+        message: '作品还没有发布内容',
+        status: work.status,
+      })
     }
 
     return work

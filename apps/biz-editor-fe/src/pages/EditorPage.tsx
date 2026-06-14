@@ -32,6 +32,8 @@ import {
   Trash2,
   Undo2,
   Unlock,
+  Copy,
+  ExternalLink,
 } from 'lucide-react'
 import {
   Alert,
@@ -330,7 +332,7 @@ function EditorPage() {
       await publishWorkMutation.mutateAsync(savedWork.uuid)
       setSaveStatus('published')
       setLastSavedAt(new Date().toISOString())
-      message.success(`作品发布成功：${h5BaseUrl}/p/${savedWork.uuid}`)
+      showPublishSuccessMessage(`${h5BaseUrl}/p/${savedWork.uuid}`)
     } catch (error) {
       setSaveStatus('error')
       message.error(getRequestErrorMessage(error))
@@ -1258,6 +1260,45 @@ function getPageCanvasViewportStyle(
     height: pageSetting.height * canvasZoom,
     ['--canvas-zoom' as string]: canvasZoom,
   }
+}
+
+function showPublishSuccessMessage(publicUrl: string) {
+  const copyPublicUrl = () => {
+    if (!navigator.clipboard) {
+      message.info(publicUrl)
+      return
+    }
+
+    void navigator.clipboard
+      .writeText(publicUrl)
+      .then(() => message.success('H5 链接已复制'))
+      .catch(() => message.warning('复制失败，请手动复制链接'))
+  }
+
+  message.success({
+    content: (
+      <Space size={8}>
+        <span>作品发布成功</span>
+        <Button
+          icon={<Copy size={13} />}
+          size="small"
+          type="link"
+          onClick={copyPublicUrl}
+        >
+          复制链接
+        </Button>
+        <Button
+          icon={<ExternalLink size={13} />}
+          size="small"
+          type="link"
+          onClick={() => window.open(publicUrl, '_blank', 'noopener,noreferrer')}
+        >
+          打开
+        </Button>
+      </Space>
+    ),
+    duration: 8,
+  })
 }
 
 function createWorkContent(

@@ -1,10 +1,28 @@
-import { notFound } from 'next/navigation'
-
-import type { PublishedWork } from './types'
+import type {
+  PublicWorkUnavailableCode,
+  PublishedWork,
+  WorkStatus,
+} from './types'
 
 const defaultApiBaseUrl = 'http://127.0.0.1:7001/api'
 const apiBaseUrl =
   process.env.H5_API_BASE_URL?.replace(/\/$/, '') ?? defaultApiBaseUrl
+
+export class PublicWorkUnavailableError extends Error {
+  code: PublicWorkUnavailableCode
+  workStatus: WorkStatus | undefined
+
+  constructor(
+    code: PublicWorkUnavailableCode,
+    message: string,
+    workStatus?: WorkStatus,
+  ) {
+    super(message)
+    this.name = 'PublicWorkUnavailableError'
+    this.code = code
+    this.workStatus = workStatus
+  }
+}
 
 export async function getPublishedWork(uuid: string) {
   const response = await fetch(`${apiBaseUrl}/public/works/${uuid}`, {
@@ -12,7 +30,13 @@ export async function getPublishedWork(uuid: string) {
   })
 
   if (response.status === 404) {
-    notFound()
+    const errorBody = await parseJson(response)
+    const publicError = normalizePublicError(errorBody)
+    throw new PublicWorkUnavailableError(
+      publicError.code,
+      publicError.message,
+      publicError.status,
+    )
   }
 
   if (!response.ok) {
@@ -20,4 +44,57 @@ export async function getPublishedWork(uuid: string) {
   }
 
   return (await response.json()) as PublishedWork
+}
+
+async function parseJson(response: Response) {
+  try {
+    return (await response.json()) as unknown
+  } catch {
+    return null
+  }
+}
+
+function normalizePublicError(body: unknown): {
+  code: PublicWorkUnavailableCode
+  message: string
+  status?: WorkStatus
+} {
+  if (isPublicErrorBody(body)) {
+    return body
+  }
+
+  if (
+    isRecord(body) &&
+    isPublicErrorBody(body.message)
+  ) {
+    return body.message
+  }
+
+  if (isRecord(body) && typeof body.message === 'string') {
+    return {
+      code: 'WORK_UNAVAILABLE',
+      message: body.message,
+    }
+  }
+
+  return {
+    code: 'WORK_UNAVAILABLE',
+    message: '作品暂不可访问',
+  }
+}
+
+function isPublicErrorBody(value: unknown): value is {
+  code: PublicWorkUnavailableCode
+  message: string
+  status?: WorkStatus
+} {
+  return (
+    isRecord(value) &&
+    typeof value.code === 'string' &&
+    typeof value.message === 'string'
+  )
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
 }
