@@ -5,6 +5,7 @@
   "packageManager": "pnpm@10.0.0",
   "scripts": {
     "build": "turbo run build",
+    "changeset": "changeset",
     "dev": "turbo run dev",
     "dev:apps": "turbo run dev --filter=biz-editor-fe --filter=biz-editor-server --filter=h5-server",
     "dev:fe": "pnpm --filter biz-editor-fe dev",
@@ -15,10 +16,13 @@
     "lint": "turbo run lint",
     "mongo:down": "docker stop ai-editor-mongo",
     "mongo:up": "docker start ai-editor-mongo >/dev/null 2>&1 || docker run -d --name ai-editor-mongo -p 27017:27017 -v ai-editor-mongo-data:/data/db mongo:7",
+    "release": "pnpm --filter @zhangli2008/ai-editor-components build && changeset publish",
     "test": "turbo run test",
-    "typecheck": "turbo run typecheck"
+    "typecheck": "turbo run typecheck",
+    "version-packages": "changeset version && pnpm install --lockfile-only"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.31.0",
     "turbo": "^2.5.0"
   }
 }
