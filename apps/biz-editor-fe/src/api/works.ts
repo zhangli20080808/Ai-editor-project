@@ -61,6 +61,13 @@ export function markWorkAsTemplate(id: string) {
   })
 }
 
+export function removeWorkFromTemplates(id: string) {
+  return updateWork(id, {
+    isPublic: false,
+    isTemplate: false,
+  })
+}
+
 export function deleteWork(id: string) {
   return request<Work>(`/works/${id}`, {
     method: 'DELETE',
@@ -142,6 +149,18 @@ export function useMarkWorkAsTemplateMutation() {
 
   return useMutation({
     mutationFn: markWorkAsTemplate,
+    onSuccess: (work) => {
+      queryClient.invalidateQueries({ queryKey: worksKeys.all })
+      queryClient.setQueryData(worksKeys.detail(work.uuid), work)
+    },
+  })
+}
+
+export function useRemoveWorkFromTemplatesMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: removeWorkFromTemplates,
     onSuccess: (work) => {
       queryClient.invalidateQueries({ queryKey: worksKeys.all })
       queryClient.setQueryData(worksKeys.detail(work.uuid), work)

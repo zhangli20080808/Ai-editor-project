@@ -6,6 +6,7 @@ import {
   Card,
   Col,
   Empty,
+  Popconfirm,
   Row,
   Space,
   Spin,
@@ -19,12 +20,18 @@ import {
   FileText,
   Layers3,
   LayoutTemplate,
+  Pencil,
   Rocket,
+  Trash2,
   ToggleRight,
 } from 'lucide-react'
 
 import { getRequestErrorMessage } from '../api/error'
-import { useCopyWorkMutation, useWorksQuery } from '../api/works'
+import {
+  useCopyWorkMutation,
+  useRemoveWorkFromTemplatesMutation,
+  useWorksQuery,
+} from '../api/works'
 import { WorkStatus, type Work } from '../api/types'
 
 const { Paragraph, Text, Title } = Typography
@@ -71,6 +78,7 @@ function TemplatesPage() {
     isTemplate: true,
   })
   const copyWorkMutation = useCopyWorkMutation()
+  const removeTemplateMutation = useRemoveWorkFromTemplatesMutation()
   const templates = templatesQuery.data?.items ?? []
 
   const useTemplate = async (template: Work) => {
@@ -97,6 +105,18 @@ function TemplatesPage() {
       '_blank',
       'noopener,noreferrer',
     )
+  }
+
+  const removeTemplate = async (template: Work) => {
+    setActiveWorkId(template.uuid)
+    try {
+      await removeTemplateMutation.mutateAsync(template.uuid)
+      message.success('已移出模板中心')
+    } catch (error) {
+      message.error(getRequestErrorMessage(error))
+    } finally {
+      setActiveWorkId(null)
+    }
   }
 
   return (
@@ -162,7 +182,9 @@ function TemplatesPage() {
                     <TemplateCard
                       active={activeWorkId === template.uuid}
                       template={template}
+                      onEdit={(work) => navigate(`/editor/${work.uuid}`)}
                       onPreview={previewTemplate}
+                      onRemove={removeTemplate}
                       onUse={useTemplate}
                     />
                   </Col>
@@ -194,13 +216,17 @@ function TemplatesPage() {
 interface TemplateCardProps {
   active: boolean
   template: Work
+  onEdit: (template: Work) => void
   onPreview: (template: Work) => void
+  onRemove: (template: Work) => Promise<void>
   onUse: (template: Work) => Promise<void>
 }
 
 function TemplateCard({
   active,
+  onEdit,
   onPreview,
+  onRemove,
   onUse,
   template,
 }: TemplateCardProps) {
@@ -251,6 +277,23 @@ function TemplateCard({
           >
             预览
           </Button>
+          <Button
+            icon={<Pencil size={14} />}
+            onClick={() => onEdit(template)}
+          >
+            编辑
+          </Button>
+          <Popconfirm
+            title="移出模板中心？"
+            description="作品仍会保留，只是不再作为模板展示。"
+            okText="移出"
+            cancelText="取消"
+            onConfirm={() => void onRemove(template)}
+          >
+            <Button danger icon={<Trash2 size={14} />} loading={active}>
+              删除
+            </Button>
+          </Popconfirm>
         </Space>
       </div>
     </Card>
