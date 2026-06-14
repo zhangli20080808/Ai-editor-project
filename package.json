@@ -6,7 +6,15 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
+    "dev:apps": "turbo run dev --filter=biz-editor-fe --filter=biz-editor-server --filter=h5-server",
+    "dev:fe": "pnpm --filter biz-editor-fe dev",
+    "dev:h5": "pnpm --filter h5-server dev",
+    "dev:clean-ports": "node scripts/kill-dev-ports.mjs",
+    "dev:local": "pnpm dev:clean-ports && pnpm mongo:up && pnpm dev:apps",
+    "dev:server": "pnpm --filter biz-editor-server dev",
     "lint": "turbo run lint",
+    "mongo:down": "docker stop ai-editor-mongo",
+    "mongo:up": "docker start ai-editor-mongo >/dev/null 2>&1 || docker run -d --name ai-editor-mongo -p 27017:27017 -v ai-editor-mongo-data:/data/db mongo:7",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck"
   },
