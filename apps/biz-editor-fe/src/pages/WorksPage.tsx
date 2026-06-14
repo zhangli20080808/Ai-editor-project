@@ -19,6 +19,7 @@ import {
 import {
   Copy,
   FileText,
+  LayoutTemplate,
   MonitorUp,
   Pencil,
   RotateCcw,
@@ -28,6 +29,7 @@ import {
 import {
   useCopyWorkMutation,
   useDeleteWorkMutation,
+  useMarkWorkAsTemplateMutation,
   useRestoreWorkMutation,
   useWorksQuery,
 } from '../api/works'
@@ -56,12 +58,14 @@ function WorksPage() {
     ...(mode === 'deleted' ? { status: WorkStatus.Deleted } : {}),
   })
   const copyWorkMutation = useCopyWorkMutation()
+  const markWorkAsTemplateMutation = useMarkWorkAsTemplateMutation()
   const deleteWorkMutation = useDeleteWorkMutation()
   const restoreWorkMutation = useRestoreWorkMutation()
   const works = worksQuery.data?.items ?? []
   const metrics = getWorkMetrics(works)
   const actionPending =
     copyWorkMutation.isPending ||
+    markWorkAsTemplateMutation.isPending ||
     deleteWorkMutation.isPending ||
     restoreWorkMutation.isPending
 
@@ -137,7 +141,7 @@ function WorksPage() {
     {
       title: '操作',
       key: 'actions',
-      width: mode === 'deleted' ? 140 : 320,
+      width: mode === 'deleted' ? 140 : 410,
       render: (_, work) =>
         mode === 'deleted' ? (
           <Button
@@ -188,6 +192,25 @@ function WorksPage() {
               }
             >
               复制
+            </Button>
+            <Button
+              disabled={work.isTemplate}
+              icon={<LayoutTemplate size={14} />}
+              loading={
+                markWorkAsTemplateMutation.isPending &&
+                actionWorkId === work.uuid
+              }
+              size="small"
+              type="link"
+              onClick={() =>
+                runWorkAction(
+                  work,
+                  () => markWorkAsTemplateMutation.mutateAsync(work.uuid),
+                  '已沉淀为模板',
+                )
+              }
+            >
+              {work.isTemplate ? '已是模板' : '设为模板'}
             </Button>
             <Popconfirm
               title="确认删除作品？"

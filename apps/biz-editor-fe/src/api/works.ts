@@ -55,6 +55,12 @@ export function copyWork(id: string) {
   })
 }
 
+export function markWorkAsTemplate(id: string) {
+  return request<Work>(`/works/${id}/template`, {
+    method: 'POST',
+  })
+}
+
 export function deleteWork(id: string) {
   return request<Work>(`/works/${id}`, {
     method: 'DELETE',
@@ -124,6 +130,18 @@ export function useCopyWorkMutation() {
 
   return useMutation({
     mutationFn: copyWork,
+    onSuccess: (work) => {
+      queryClient.invalidateQueries({ queryKey: worksKeys.all })
+      queryClient.setQueryData(worksKeys.detail(work.uuid), work)
+    },
+  })
+}
+
+export function useMarkWorkAsTemplateMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: markWorkAsTemplate,
     onSuccess: (work) => {
       queryClient.invalidateQueries({ queryKey: worksKeys.all })
       queryClient.setQueryData(worksKeys.detail(work.uuid), work)

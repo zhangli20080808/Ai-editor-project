@@ -818,6 +818,141 @@
   padding: 0;
 }
 
+.templates-library-panel {
+  max-width: none;
+}
+
+.templates-library-panel .ant-card-body {
+  padding: 16px;
+}
+
+.templates-library-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #edf0f3;
+}
+
+.templates-library-header > div {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.templates-error-alert {
+  margin-top: 14px;
+}
+
+.template-card-grid {
+  margin-top: 14px;
+}
+
+.template-library-card {
+  height: 100%;
+  overflow: hidden;
+  border-color: #edf0f3;
+  border-radius: 8px;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.template-library-card:hover {
+  border-color: #ffb6a8;
+  box-shadow: 0 12px 28px rgba(31, 35, 41, 0.08);
+  transform: translateY(-1px);
+}
+
+.template-library-card .ant-card-body {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  padding: 0;
+}
+
+.template-library-cover {
+  position: relative;
+  display: flex;
+  aspect-ratio: 3 / 4;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background:
+    linear-gradient(#eef2f7 1px, transparent 1px),
+    linear-gradient(90deg, #eef2f7 1px, transparent 1px),
+    #f8fafc;
+  background-size: 18px 18px;
+}
+
+.template-library-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.template-library-cover .ant-tag {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  margin: 0;
+}
+
+.template-library-cover-empty {
+  display: flex;
+  width: 52px;
+  height: 52px;
+  align-items: center;
+  justify-content: center;
+  color: #ff5a3c;
+  background: #fff1ed;
+  border: 1px solid #ffe1d8;
+  border-radius: 8px;
+}
+
+.template-library-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+}
+
+.template-library-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.template-library-title .ant-typography {
+  margin: 0;
+}
+
+.template-library-body .ant-typography {
+  margin: 0;
+}
+
+.template-library-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 2px;
+  font-size: 12px;
+}
+
+.template-library-actions {
+  width: 100%;
+  margin-top: auto;
+}
+
+.template-library-actions .ant-space-item:first-child {
+  flex: 1;
+}
+
 .templates-empty-content {
   display: flex;
   min-height: 360px;

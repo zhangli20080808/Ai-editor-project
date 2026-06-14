@@ -143,6 +143,16 @@ export class WorksService {
     return copied.toObject()
   }
 
+  async markAsTemplate(id: string, currentUser: AuthUser) {
+    const work = await this.findWorkByIdentity(id, currentUser)
+
+    work.isTemplate = true
+    work.isPublic = true
+
+    await work.save()
+    return work.toObject()
+  }
+
   async softDelete(id: string, currentUser: AuthUser) {
     const work = await this.findWorkByIdentity(id, currentUser)
 

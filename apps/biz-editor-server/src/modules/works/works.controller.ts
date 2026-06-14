@@ -60,6 +60,14 @@ export class WorksController {
     return this.worksService.copy(id, currentUser)
   }
 
+  @Post(':id/template')
+  markAsTemplate(
+    @Param('id') id: string,
+    @CurrentUser() currentUser: AuthUser,
+  ) {
+    return this.worksService.markAsTemplate(id, currentUser)
+  }
+
   @Delete(':id')
   softDelete(@Param('id') id: string, @CurrentUser() currentUser: AuthUser) {
     return this.worksService.softDelete(id, currentUser)
