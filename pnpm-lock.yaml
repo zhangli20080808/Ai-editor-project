@@ -30,8 +30,8 @@ importers:
         specifier: ^5.101.0
         version: 5.101.0(react@19.2.7)
       '@zhangli2008/ai-editor-components':
-        specifier: ^0.1.0
-        version: 0.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: workspace:*
+        version: link:../../packages/biz-components
       antd:
         specifier: ^6.4.3
         version: 6.4.3(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -1597,12 +1597,6 @@ packages:
 
   '@xtuc/long@4.2.2':
     resolution: {integrity: sha512-NuHqBY1PB/D8xU6s/thBgOAiAP7HOYDQ32+BFZILJ8ivkUkAHQnWfn6WhL79Owj1qmUnoN/YPhktdIoucipkAQ==, tarball: https://registry.npmjs.org/@xtuc/long/-/long-4.2.2.tgz}
-
-  '@zhangli2008/ai-editor-components@0.1.0':
-    resolution: {integrity: sha512-gt0pT7lUhMW+nTTMJIMn0LbhxFqWMcghHr7GLPTjCol5jJiXfJXIm2AChV2XtCw1W05634dOGTF3SQ1sJvBFLg==, tarball: https://registry.npmjs.org/@zhangli2008/ai-editor-components/-/ai-editor-components-0.1.0.tgz}
-    peerDependencies:
-      react: ^19.0.0
-      react-dom: ^19.0.0
 
   accepts@2.0.0:
     resolution: {integrity: sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng==, tarball: https://registry.npmjs.org/accepts/-/accepts-2.0.0.tgz}
@@ -5024,11 +5018,6 @@ snapshots:
   '@xtuc/ieee754@1.2.0': {}
 
   '@xtuc/long@4.2.2': {}
-
-  '@zhangli2008/ai-editor-components@0.1.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
-    dependencies:
-      react: 19.2.7
-      react-dom: 19.2.7(react@19.2.7)
 
   accepts@2.0.0:
     dependencies:

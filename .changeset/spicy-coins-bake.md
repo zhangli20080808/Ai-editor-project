@@ -1,5 +1,5 @@
 ---
-"@zhangli2008/ai-editor-components": major
+"@zhangli2008/ai-editor-components": patch
 ---
 
 md update
