@@ -77,6 +77,7 @@ import {
 import { useClickOutside } from '../hooks/useClickOutside'
 import { useEditorHotkeys } from '../hooks/useEditorHotkeys'
 import { useKeyPress } from '../hooks/useKeyPress'
+import { generateCoverImage } from '../editor/coverImageService'
 import { uploadImage } from '../editor/uploadService'
 import type { UploadedAsset } from '../editor/uploadService'
 import {
@@ -171,12 +172,14 @@ function EditorPage() {
   const updateWorkMutation = useUpdateWorkMutation()
   const publishWorkMutation = usePublishWorkMutation()
   const canvasStageRef = useRef<HTMLDivElement | null>(null)
+  const pageCanvasRef = useRef<HTMLDivElement | null>(null)
   const baselineSnapshotRef = useRef<string | null>(null)
   const shouldResetBaselineRef = useRef(false)
   const [workMeta, setWorkMeta] = useState(defaultWorkMeta)
   const [metaModalOpen, setMetaModalOpen] = useState(false)
   const [pendingSave, setPendingSave] = useState(false)
   const [pendingPublish, setPendingPublish] = useState(false)
+  const [previewMode, setPreviewMode] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null)
   const saving = saveStatus === 'saving' || saveStatus === 'publishing'
@@ -187,6 +190,10 @@ function EditorPage() {
         createWorkContent(components, pageSetting),
       ),
     [components, pageSetting, workMeta],
+  )
+  const previewContent = useMemo(
+    () => createWorkContent(components, pageSetting),
+    [components, pageSetting],
   )
 
   const activeComponent =
@@ -257,7 +264,11 @@ function EditorPage() {
 
   const saveCurrentWork = async () => {
     const content = createWorkContent(components, pageSetting)
-    const metaPayload = normalizeWorkMeta(workMeta)
+    const metaPayload = await createWorkMetaWithCover(
+      workMeta,
+      pageCanvasRef.current,
+    )
+    setWorkMeta(metaPayload)
     setSaveStatus('saving')
 
     if (workId) {
@@ -509,19 +520,14 @@ function EditorPage() {
                   >
                     作品设置
                   </Button>
-                  <Popover
-                    content={
-                      <H5PreviewRenderer
-                        content={createWorkContent(components, pageSetting)}
-                      />
-                    }
-                    placement="bottom"
-                    rootClassName="h5-preview-popover"
-                    title="草稿预览"
-                    trigger="click"
+                  <Button
+                    icon={<Eye size={14} />}
+                    size="small"
+                    type={previewMode ? 'primary' : 'default'}
+                    onClick={() => setPreviewMode((mode) => !mode)}
                   >
-                    <Button size="small">预览</Button>
-                  </Popover>
+                    {previewMode ? '退出预览' : '预览'}
+                  </Button>
                   <Button
                     loading={saveStatus === 'saving'}
                     size="small"
@@ -561,6 +567,7 @@ function EditorPage() {
                 ) : null}
                 <div
                   className="page-canvas"
+                  ref={pageCanvasRef}
                   style={getPageCanvasStyle(pageSetting)}
                 >
                   {components.length === 0 ? (
@@ -626,6 +633,14 @@ function EditorPage() {
               onUpdatePageSetting={updatePageSetting}
             />
         </Sider>
+        {previewMode ? (
+          <div
+            className="editor-floating-preview"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <H5PreviewRenderer content={previewContent} />
+          </div>
+        ) : null}
       </Layout>
       <WorkMetaModal
         open={metaModalOpen}
@@ -1277,6 +1292,29 @@ function normalizeWorkMeta(meta: typeof defaultWorkMeta) {
     title: meta.title.trim(),
     desc: meta.desc.trim(),
     coverImg: meta.coverImg.trim(),
+  }
+}
+
+async function createWorkMetaWithCover(
+  meta: typeof defaultWorkMeta,
+  pageCanvasElement: HTMLElement | null,
+) {
+  const normalizedMeta = normalizeWorkMeta(meta)
+
+  if (normalizedMeta.coverImg) {
+    return normalizedMeta
+  }
+
+  try {
+    const coverImg = await generateCoverImage(pageCanvasElement)
+    return {
+      ...normalizedMeta,
+      coverImg,
+    }
+  } catch (error) {
+    console.warn('Failed to generate work cover image.', error)
+    message.warning('封面自动生成失败，本次将不保存封面')
+    return normalizedMeta
   }
 }
 

@@ -19,6 +19,7 @@
     "@zhangli2008/ai-editor-components": "workspace:*",
     "antd": "^6.4.3",
     "hotkeys-js": "^4.0.4",
+    "html-to-image": "^1.11.13",
     "immer": "^11.1.8",
     "lucide-react": "^1.17.0",
     "react": "^19.2.6",

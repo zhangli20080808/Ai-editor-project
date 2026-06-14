@@ -97,7 +97,11 @@ function WorksPage() {
       render: (_, work) => (
         <div className="work-title-cell">
           <div className="work-cover-mark">
-            <FileText size={18} />
+            {work.coverImg ? (
+              <img src={work.coverImg} alt={work.title} />
+            ) : (
+              <FileText size={18} />
+            )}
           </div>
           <div className="work-title-text">
             <Text strong>{work.title}</Text>

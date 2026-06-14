@@ -51,10 +51,13 @@ function renderComponent(component: ComponentData) {
 
 function getPageStyle(content: WorkContent): CSSProperties {
   const pageSetting = content.props
-  const previewHeight = 932
+  const previewHeight = 667
 
   return {
-    minHeight: Math.max(toNumberValue(pageSetting.height, previewHeight), previewHeight),
+    minHeight: Math.max(
+      toNumberValue(pageSetting.height, previewHeight),
+      previewHeight,
+    ),
     backgroundColor: pageSetting.backgroundColor || '#ffffff',
     backgroundImage: pageSetting.backgroundImage
       ? `url(${pageSetting.backgroundImage})`

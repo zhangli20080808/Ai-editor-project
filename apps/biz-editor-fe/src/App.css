@@ -155,6 +155,7 @@
 }
 
 .editor-shell {
+  position: relative;
   height: 100%;
   min-height: 0;
   overflow: hidden;
@@ -381,7 +382,7 @@
 .h5-preview-phone {
   position: relative;
   box-sizing: border-box;
-  width: 466px;
+  width: 411px;
   max-width: calc(100vw - 48px);
   padding: 8px;
   background:
@@ -414,15 +415,15 @@
 }
 
 .h5-preview-phone-button-left {
-  top: 118px;
+  top: 96px;
   left: -3px;
-  height: 64px;
+  height: 54px;
 }
 
 .h5-preview-phone-button-right {
-  top: 172px;
+  top: 136px;
   right: -3px;
-  height: 84px;
+  height: 68px;
 }
 
 .h5-preview-phone-island {
@@ -456,8 +457,8 @@
 
 .h5-preview-screen {
   width: 100%;
-  height: min(72vh, 932px);
-  max-height: 932px;
+  height: min(72vh, 667px);
+  max-height: 667px;
   overflow: auto;
   background: #ffffff;
   scrollbar-width: thin;
@@ -506,6 +507,35 @@
     linear-gradient(rgba(31, 35, 41, 0.04) 1px, transparent 1px),
     #f8fafc;
   background-size: 16px 16px;
+}
+
+.editor-floating-preview {
+  position: absolute;
+  z-index: 20;
+  top: 0;
+  bottom: 0;
+  left: 276px;
+  display: flex;
+  width: min(330px, calc(100% - 648px));
+  min-width: 300px;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  padding: 0;
+  pointer-events: none;
+}
+
+.editor-floating-preview .h5-preview-workbench {
+  width: auto;
+  min-width: max-content;
+  padding: 0;
+  transform: scale(0.68);
+  transform-origin: center;
+  pointer-events: auto;
+}
+
+.editor-floating-preview .h5-preview-screen {
+  height: min(86vh, 667px);
 }
 
 .page-canvas-viewport {
@@ -708,6 +738,13 @@
   background: #fff1ed;
   border: 1px solid #ffe1d8;
   border-radius: 8px;
+  overflow: hidden;
+}
+
+.work-cover-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .work-title-text {
