@@ -38,6 +38,32 @@ export async function request<T>(path: string, options: RequestOptions = {}) {
   return data as T
 }
 
+export async function requestBlob(path: string, options: RequestOptions = {}) {
+  const { body, headers, params, ...requestOptions } = options
+  const authToken = getAuthToken()
+  const init: RequestInit = {
+    ...requestOptions,
+    headers: {
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+      ...headers,
+    },
+  }
+
+  if (body !== undefined) {
+    init.body = JSON.stringify(body)
+  }
+
+  const response = await fetch(buildUrl(path, params), init)
+
+  if (!response.ok) {
+    const data = await parseResponse(response)
+    throw new ApiError(getErrorMessage(data), response.status, data)
+  }
+
+  return response.blob()
+}
+
 function buildUrl(
   path: string,
   params?: Record<string, boolean | number | string | null | undefined>,

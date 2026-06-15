@@ -7,8 +7,10 @@ import {
   Patch,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common'
+import type { Response } from 'express'
 
 import { AuthGuard } from '../auth/auth.guard'
 import { CurrentUser } from '../auth/current-user.decorator'
@@ -87,6 +89,27 @@ export class WorksController {
     @CurrentUser() currentUser: AuthUser,
   ) {
     return this.worksService.deleteChannel(id, channelId, currentUser)
+  }
+
+  @Get(':id/channels/:channelId/qrcode')
+  async downloadChannelQrCode(
+    @Param('id') id: string,
+    @Param('channelId') channelId: string,
+    @CurrentUser() currentUser: AuthUser,
+    @Res() response: Response,
+  ) {
+    const qrCode = await this.worksService.generateChannelQrCode(
+      id,
+      channelId,
+      currentUser,
+    )
+
+    response.setHeader('Content-Type', 'image/png')
+    response.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${qrCode.filename}"`,
+    )
+    response.send(qrCode.buffer)
   }
 
   @Get(':id/stats')

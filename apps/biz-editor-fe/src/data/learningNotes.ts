@@ -1313,4 +1313,45 @@ export const learningNotes: LearningNote[] = [
     nextStep:
       '继续增强发布体验：补真实封面上传、渠道复制反馈、二维码下载、统计图表和更细粒度的事件埋点。',
   },
+  {
+    id: 'server-qrcode-download-plan',
+    category: '实施计划',
+    title: '服务端生成渠道二维码下载方案',
+    summary:
+      '渠道二维码下载走服务端，由 NestJS 根据作品 uuid 和渠道 id 生成 PNG 附件，前端只负责触发下载。',
+    background:
+      '渠道二维码是投放物料的一部分，如果完全由前端生成，后续统一尺寸、颜色、Logo、水印、下载文件名和权限校验都会分散在 UI 中。放到服务端生成，可以让渠道链接和二维码规范集中维护。',
+    goals: [
+      '为每个渠道提供稳定的二维码 PNG 下载接口。',
+      '二维码内容使用服务端 H5_BASE_URL 拼接，避免前端和后端链接规则不一致。',
+      '下载接口沿用作品归属校验，只有作品拥有者可以下载渠道二维码。',
+      '前端渠道行增加“下载二维码”动作，并保留复制链接。',
+    ],
+    decision:
+      '使用服务端 qrcode 包生成 PNG Buffer，接口返回 image/png attachment；前端新增 requestBlob 处理二进制响应。',
+    keyDesigns: [
+      '新增 H5_BASE_URL 配置，默认 http://127.0.0.1:7002。',
+      '新增 GET /api/works/:id/channels/:channelId/qrcode。',
+      'WorksService 先通过当前用户查作品，再校验渠道是否存在。',
+      '二维码尺寸固定 360px，容错级别使用 M，颜色跟随当前 B 端视觉层级。',
+      '前端通过 blob URL 和 a.download 触发本地下载。',
+    ],
+    implementation:
+      '计划已落地。当前渠道列表和发布成功弹层都支持下载服务端生成的二维码 PNG。',
+    implementationDetails: [
+      'biz-editor-server 引入 qrcode 和 @types/qrcode。',
+      'configuration 增加 h5BaseUrl，并在 .env.example 中补 H5_BASE_URL。',
+      'WorksController 新增二维码下载路由，并设置 Content-Type 与 Content-Disposition。',
+      'src/api/http.ts 新增 requestBlob，用统一鉴权方式请求二进制文件。',
+      'ChannelManager 增加“下载二维码”按钮，下载成功后给出提示。',
+    ],
+    tests: [
+      'biz-editor-server typecheck 和 build 通过。',
+      'biz-editor-fe typecheck 和 build 通过。',
+      'curl 下载二维码接口返回 200、Content-Type=image/png、Content-Disposition=attachment。',
+      '下载文件经 file 检查为 360 x 360 PNG。',
+    ],
+    nextStep:
+      '后续可支持二维码带 Logo、渠道名水印、批量下载渠道二维码和二维码样式配置。',
+  },
 ]

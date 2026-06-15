@@ -3,6 +3,7 @@ export interface AppConfiguration {
   mongodbUri: string
   authSecret: string
   mockSmsCode: string
+  h5BaseUrl: string
 }
 
 export default (): AppConfiguration => ({
@@ -11,4 +12,5 @@ export default (): AppConfiguration => ({
     process.env.MONGODB_URI ?? 'mongodb://127.0.0.1:27017/ai_editor',
   authSecret: process.env.AUTH_SECRET ?? 'ai-editor-local-auth-secret',
   mockSmsCode: process.env.MOCK_SMS_CODE ?? '123456',
+  h5BaseUrl: process.env.H5_BASE_URL ?? 'http://127.0.0.1:7002',
 })

@@ -1107,13 +1107,14 @@
   display: flex;
   min-width: 0;
   align-items: center;
+  flex-wrap: wrap;
   gap: 4px;
   margin-bottom: 6px;
 }
 
 .channel-row-title .ant-typography {
   min-width: 0;
-  flex: 1;
+  flex: 1 0 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

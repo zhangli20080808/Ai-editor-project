@@ -33,6 +33,7 @@ import {
   Undo2,
   Unlock,
   Copy,
+  Download,
   ExternalLink,
   Share2,
 } from 'lucide-react'
@@ -90,6 +91,7 @@ import {
   useCreateWorkMutation,
   useCreateWorkChannelMutation,
   useDeleteWorkChannelMutation,
+  downloadWorkChannelQrCode,
   usePublishWorkMutation,
   useUpdateWorkTemplateSettingsMutation,
   useUpdateWorkMutation,
@@ -478,6 +480,22 @@ function EditorPage() {
       message.error(getRequestErrorMessage(error))
     }
   }
+
+  const handleDownloadChannelQrCode = async (channelId: string) => {
+    if (!currentWork) {
+      message.warning('请先保存或发布作品')
+      return
+    }
+
+    try {
+      const blob = await downloadWorkChannelQrCode(currentWork.uuid, channelId)
+      downloadBlob(blob, `channel-${channelId}.png`)
+      message.success('二维码已下载')
+    } catch (error) {
+      message.error(getRequestErrorMessage(error))
+    }
+  }
+
   const handleMetaModalOk = () => {
     if (!hasMeaningfulWorkTitle(workMeta.title)) {
       message.warning('请设置一个明确的作品标题')
@@ -802,6 +820,7 @@ function EditorPage() {
         onChannelNameChange={setChannelName}
         onCreateChannel={handleCreateChannel}
         onDeleteChannel={handleDeleteChannel}
+        onDownloadChannelQrCode={handleDownloadChannelQrCode}
         onPreviewModeChange={setSettingsPreviewMode}
         onPublish={handlePublish}
         onPublishTemplate={handlePublishTemplate}
@@ -820,6 +839,7 @@ function EditorPage() {
         onChannelNameChange={setChannelName}
         onCreateChannel={handleCreateChannel}
         onDeleteChannel={handleDeleteChannel}
+        onDownloadChannelQrCode={handleDownloadChannelQrCode}
         channelName={channelName}
         loading={createChannelMutation.isPending || deleteChannelMutation.isPending}
       />
@@ -922,6 +942,7 @@ interface PublishSettingsDrawerProps {
   onChannelNameChange: (value: string) => void
   onCreateChannel: () => void
   onDeleteChannel: (channelId: string) => void
+  onDownloadChannelQrCode: (channelId: string) => void
   onPreviewModeChange: (mode: 'page' | 'share') => void
   onPublish: () => void
   onPublishTemplate: () => void
@@ -938,6 +959,7 @@ function PublishSettingsDrawer({
   onChannelNameChange,
   onCreateChannel,
   onDeleteChannel,
+  onDownloadChannelQrCode,
   onPreviewModeChange,
   onPublish,
   onPublishTemplate,
@@ -1034,6 +1056,7 @@ function PublishSettingsDrawer({
             onChannelNameChange={onChannelNameChange}
             onCreateChannel={onCreateChannel}
             onDeleteChannel={onDeleteChannel}
+            onDownloadChannelQrCode={onDownloadChannelQrCode}
           />
         </section>
 
@@ -1091,6 +1114,7 @@ interface PublishResultModalProps {
   onChannelNameChange: (value: string) => void
   onCreateChannel: () => void
   onDeleteChannel: (channelId: string) => void
+  onDownloadChannelQrCode: (channelId: string) => void
 }
 
 function PublishResultModal({
@@ -1101,6 +1125,7 @@ function PublishResultModal({
   onChannelNameChange,
   onCreateChannel,
   onDeleteChannel,
+  onDownloadChannelQrCode,
   open,
   workUuid,
 }: PublishResultModalProps) {
@@ -1140,6 +1165,7 @@ function PublishResultModal({
           onChannelNameChange={onChannelNameChange}
           onCreateChannel={onCreateChannel}
           onDeleteChannel={onDeleteChannel}
+          onDownloadChannelQrCode={onDownloadChannelQrCode}
         />
       </div>
     </Modal>
@@ -1155,6 +1181,7 @@ interface ChannelManagerProps {
   onChannelNameChange: (value: string) => void
   onCreateChannel: () => void
   onDeleteChannel: (channelId: string) => void
+  onDownloadChannelQrCode: (channelId: string) => void
 }
 
 function ChannelManager({
@@ -1165,6 +1192,7 @@ function ChannelManager({
   onChannelNameChange,
   onCreateChannel,
   onDeleteChannel,
+  onDownloadChannelQrCode,
   workUuid,
 }: ChannelManagerProps) {
   return (
@@ -1181,6 +1209,14 @@ function ChannelManager({
                 <Text strong>{channel.name}</Text>
                 <Button size="small" type="link" onClick={() => copyText(link)}>
                   复制链接
+                </Button>
+                <Button
+                  icon={<Download size={13} />}
+                  size="small"
+                  type="link"
+                  onClick={() => onDownloadChannelQrCode(channel.id)}
+                >
+                  下载二维码
                 </Button>
                 <Button
                   danger
@@ -1817,6 +1853,18 @@ function copyText(text: string) {
     .writeText(text)
     .then(() => message.success('链接已复制'))
     .catch(() => message.warning('复制失败，请手动复制链接'))
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
 }
 
 function createWorkContent(

@@ -5,9 +5,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
 import { InjectModel } from '@nestjs/mongoose'
 import { isValidObjectId, Types, type Model } from 'mongoose'
+import * as QRCode from 'qrcode'
 
+import type { AppConfiguration } from '../../config/configuration'
 import type { AuthUser } from '../users/users.service'
 import { type CreateChannelDto } from './dto/create-channel.dto'
 import { type CreateWorkDto } from './dto/create-work.dto'
@@ -40,6 +43,7 @@ export class WorksService {
     @InjectModel(Work.name) private readonly workModel: Model<WorkDocument>,
     @InjectModel(WorkVisit.name)
     private readonly workVisitModel: Model<WorkVisitDocument>,
+    private readonly configService: ConfigService<AppConfiguration>,
   ) {}
 
   async create(createWorkDto: CreateWorkDto, currentUser: AuthUser) {
@@ -262,6 +266,41 @@ export class WorksService {
     }
   }
 
+  async generateChannelQrCode(
+    id: string,
+    channelId: string,
+    currentUser: AuthUser,
+  ) {
+    const work = await this.findWorkByIdentity(id, currentUser)
+    ensureWorkChannels(work)
+
+    const channel = work.channels.find((item) => item.id === channelId)
+    if (!channel) {
+      throw new NotFoundException('渠道不存在')
+    }
+
+    const link = buildChannelLink(
+      this.configService.getOrThrow('h5BaseUrl', { infer: true }),
+      work.uuid,
+      channel.id,
+    )
+    const buffer = await QRCode.toBuffer(link, {
+      color: {
+        dark: '#1f2329',
+        light: '#ffffff',
+      },
+      errorCorrectionLevel: 'M',
+      margin: 2,
+      type: 'png',
+      width: 360,
+    })
+
+    return {
+      buffer,
+      filename: `channel-${channel.id}.png`,
+    }
+  }
+
   async softDelete(id: string, currentUser: AuthUser) {
     const work = await this.findWorkByIdentity(id, currentUser)
 
@@ -405,6 +444,11 @@ function normalizeTemplateTags(tags: string[]) {
   return Array.from(
     new Set(tags.map((tag) => tag.trim()).filter(Boolean)),
   ).slice(0, 10)
+}
+
+function buildChannelLink(baseUrl: string, workUuid: string, channelId: string) {
+  const normalizedBaseUrl = baseUrl.replace(/\/$/, '')
+  return `${normalizedBaseUrl}/p/${workUuid}?channel=${channelId}`
 }
 
 function getAuthorName(currentUser: AuthUser) {

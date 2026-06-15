@@ -4,7 +4,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 
-import { request } from './http'
+import { request, requestBlob } from './http'
 import type {
   CreateWorkPayload,
   ListWorksParams,
@@ -87,6 +87,10 @@ export function deleteWorkChannel(id: string, channelId: string) {
   return request<Work>(`/works/${id}/channels/${channelId}`, {
     method: 'DELETE',
   })
+}
+
+export function downloadWorkChannelQrCode(id: string, channelId: string) {
+  return requestBlob(`/works/${id}/channels/${channelId}/qrcode`)
 }
 
 export function removeWorkFromTemplates(id: string) {
