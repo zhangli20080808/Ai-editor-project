@@ -14,6 +14,12 @@ export interface WorkContent {
   setting?: Record<string, unknown>
 }
 
+export interface WorkChannel {
+  id: string
+  name: string
+  createdAt: Date
+}
+
 export type WorkDocument = HydratedDocument<Work>
 
 @Schema({
@@ -49,6 +55,18 @@ export class Work {
   coverImg!: string
 
   @Prop({
+    type: [
+      {
+        id: { type: String, required: true },
+        name: { type: String, required: true, trim: true },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
+    default: () => [],
+  })
+  channels!: WorkChannel[]
+
+  @Prop({
     default: WorkStatus.Unpublished,
     enum: Object.values(WorkStatus).filter((value) => typeof value === 'number'),
     index: true,
@@ -57,6 +75,9 @@ export class Work {
 
   @Prop({ default: false, index: true })
   isTemplate!: boolean
+
+  @Prop({ type: [String], default: [] })
+  templateTags!: string[]
 
   @Prop({ default: false, index: true })
   isHot!: boolean

@@ -58,6 +58,12 @@ export interface WorkContent {
   setting?: Record<string, unknown>
 }
 
+export interface WorkChannel {
+  id: string
+  name: string
+  createdAt: string
+}
+
 export interface Work {
   _id: string
   uuid: string
@@ -66,9 +72,11 @@ export interface Work {
   content: WorkContent
   publishedContent: WorkContent | null
   author: string
+  channels: WorkChannel[]
   coverImg: string
   status: WorkStatus
   isTemplate: boolean
+  templateTags: string[]
   isHot: boolean
   copiedCount: number
   isPublic: boolean
@@ -96,6 +104,16 @@ export interface CreateWorkPayload {
   isHot?: boolean
   isPublic?: boolean
   status?: WorkStatus
+}
+
+export interface WorkStatsChannel extends WorkChannel {
+  pv: number
+}
+
+export interface WorkStats {
+  workUuid: string
+  totalPv: number
+  channels: WorkStatsChannel[]
 }
 
 export type UpdateWorkPayload = Partial<CreateWorkPayload>

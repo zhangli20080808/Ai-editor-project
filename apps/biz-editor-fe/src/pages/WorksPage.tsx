@@ -23,6 +23,7 @@ import {
   MonitorUp,
   Pencil,
   RotateCcw,
+  BarChart3,
   Trash2,
 } from 'lucide-react'
 
@@ -141,7 +142,7 @@ function WorksPage() {
     {
       title: '操作',
       key: 'actions',
-      width: mode === 'deleted' ? 140 : 410,
+      width: mode === 'deleted' ? 140 : 470,
       render: (_, work) =>
         mode === 'deleted' ? (
           <Button
@@ -177,6 +178,14 @@ function WorksPage() {
               onClick={() => previewWork(work)}
             >
               预览
+            </Button>
+            <Button
+              icon={<BarChart3 size={14} />}
+              size="small"
+              type="link"
+              onClick={() => navigate(`/works/${work.uuid}/stats`)}
+            >
+              统计
             </Button>
             <Button
               icon={<Copy size={14} />}

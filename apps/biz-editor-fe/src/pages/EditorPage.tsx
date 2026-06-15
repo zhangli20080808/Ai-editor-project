@@ -34,11 +34,13 @@ import {
   Unlock,
   Copy,
   ExternalLink,
+  Share2,
 } from 'lucide-react'
 import {
   Alert,
   Button,
   Collapse,
+  Drawer,
   Empty,
   Form,
   Input,
@@ -46,10 +48,12 @@ import {
   Layout,
   Modal,
   Popover,
+  QRCode,
   Radio,
   Select,
   Slider,
   Space,
+  Switch,
   Tabs,
   Tag,
   Tooltip,
@@ -84,11 +88,14 @@ import { uploadImage } from '../editor/uploadService'
 import type { UploadedAsset } from '../editor/uploadService'
 import {
   useCreateWorkMutation,
+  useCreateWorkChannelMutation,
+  useDeleteWorkChannelMutation,
   usePublishWorkMutation,
+  useUpdateWorkTemplateSettingsMutation,
   useUpdateWorkMutation,
   useWorkQuery,
 } from '../api/works'
-import type { WorkContent } from '../api/types'
+import type { Work, WorkContent } from '../api/types'
 import { getRequestErrorMessage } from '../api/error'
 import { H5PreviewRenderer } from '../components/H5PreviewRenderer'
 import '../App.css'
@@ -120,6 +127,16 @@ const defaultWorkMeta = {
   desc: '',
   coverImg: '',
 }
+const defaultTemplateSettings = {
+  isPublic: true,
+  templateTags: [] as string[],
+}
+const templateTagOptions = [
+  { label: '活动促销', value: '活动促销' },
+  { label: '品牌宣传', value: '品牌宣传' },
+  { label: '商品种草', value: '商品种草' },
+  { label: '报名收集', value: '报名收集' },
+]
 type SaveStatus = 'idle' | 'dirty' | 'saving' | 'saved' | 'publishing' | 'published' | 'error'
 
 function EditorPage() {
@@ -173,12 +190,24 @@ function EditorPage() {
   const createWorkMutation = useCreateWorkMutation()
   const updateWorkMutation = useUpdateWorkMutation()
   const publishWorkMutation = usePublishWorkMutation()
+  const updateTemplateMutation = useUpdateWorkTemplateSettingsMutation()
+  const createChannelMutation = useCreateWorkChannelMutation()
+  const deleteChannelMutation = useDeleteWorkChannelMutation()
   const canvasStageRef = useRef<HTMLDivElement | null>(null)
   const pageCanvasRef = useRef<HTMLDivElement | null>(null)
   const baselineSnapshotRef = useRef<string | null>(null)
   const shouldResetBaselineRef = useRef(false)
   const [workMeta, setWorkMeta] = useState(defaultWorkMeta)
+  const [currentWork, setCurrentWork] = useState<Work | null>(null)
+  const [templateSettings, setTemplateSettings] = useState(
+    defaultTemplateSettings,
+  )
   const [metaModalOpen, setMetaModalOpen] = useState(false)
+  const [settingsDrawerOpen, setSettingsDrawerOpen] = useState(false)
+  const [settingsPreviewMode, setSettingsPreviewMode] =
+    useState<'page' | 'share'>('page')
+  const [publishResultOpen, setPublishResultOpen] = useState(false)
+  const [channelName, setChannelName] = useState('')
   const [pendingSave, setPendingSave] = useState(false)
   const [pendingPublish, setPendingPublish] = useState(false)
   const [previewMode, setPreviewMode] = useState(false)
@@ -207,6 +236,8 @@ function EditorPage() {
       shouldResetBaselineRef.current = true
       baselineSnapshotRef.current = null
       setWorkMeta(defaultWorkMeta)
+      setCurrentWork(null)
+      setTemplateSettings(defaultTemplateSettings)
       setSaveStatus('idle')
       setLastSavedAt(null)
       resetEditor()
@@ -223,6 +254,7 @@ function EditorPage() {
     }
 
     loadWorkContent(workQuery.data.content)
+    setCurrentWork(workQuery.data)
     setWorkMeta({
       title:
         workQuery.data.title === legacyDefaultWorkTitle
@@ -230,6 +262,10 @@ function EditorPage() {
           : workQuery.data.title || '',
       desc: workQuery.data.desc || '',
       coverImg: workQuery.data.coverImg || '',
+    })
+    setTemplateSettings({
+      isPublic: workQuery.data.isPublic,
+      templateTags: workQuery.data.templateTags ?? [],
     })
     setSaveStatus('saved')
     setLastSavedAt(workQuery.data.updatedAt)
@@ -264,7 +300,38 @@ function EditorPage() {
     }
   }, [currentWorkSnapshot, saveStatus])
 
-  const saveCurrentWork = async () => {
+  useEffect(() => {
+    const shouldWarn =
+      saveStatus === 'dirty' ||
+      saveStatus === 'saving' ||
+      saveStatus === 'error'
+
+    if (!shouldWarn) {
+      return
+    }
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [saveStatus])
+
+  useEffect(() => {
+    if (saveStatus !== 'dirty' || !hasMeaningfulWorkTitle(workMeta.title)) {
+      return
+    }
+
+    const autosaveTimer = window.setTimeout(() => {
+      void saveCurrentWork({ silent: true })
+    }, 5000)
+
+    return () => window.clearTimeout(autosaveTimer)
+  }, [currentWorkSnapshot, saveStatus, workMeta.title])
+
+  const saveCurrentWork = async (options: { silent?: boolean } = {}) => {
     const content = createWorkContent(components, pageSetting)
     const metaPayload = await createWorkMetaWithCover(
       workMeta,
@@ -282,8 +349,12 @@ function EditorPage() {
         },
       })
       baselineSnapshotRef.current = createWorkSnapshot(metaPayload, content)
+      setCurrentWork(savedWork)
       setSaveStatus('saved')
       setLastSavedAt(savedWork.updatedAt)
+      if (!options.silent) {
+        message.success('作品保存成功')
+      }
       return savedWork
     }
 
@@ -293,9 +364,13 @@ function EditorPage() {
     })
     loadedWorkIdRef.current = createdWork.uuid
     baselineSnapshotRef.current = createWorkSnapshot(metaPayload, content)
+    setCurrentWork(createdWork)
     setSaveStatus('saved')
     setLastSavedAt(createdWork.updatedAt)
     navigate(`/editor/${createdWork.uuid}`, { replace: true })
+    if (!options.silent) {
+      message.success('作品保存成功')
+    }
     return createdWork
   }
 
@@ -310,7 +385,6 @@ function EditorPage() {
 
     try {
       await saveCurrentWork()
-      message.success('作品保存成功')
     } catch (error) {
       setSaveStatus('error')
       message.error(getRequestErrorMessage(error))
@@ -329,12 +403,78 @@ function EditorPage() {
     try {
       const savedWork = await saveCurrentWork()
       setSaveStatus('publishing')
-      await publishWorkMutation.mutateAsync(savedWork.uuid)
+      const publishedWork = await publishWorkMutation.mutateAsync(savedWork.uuid)
+      setCurrentWork(publishedWork)
       setSaveStatus('published')
       setLastSavedAt(new Date().toISOString())
-      showPublishSuccessMessage(`${h5BaseUrl}/p/${savedWork.uuid}`)
+      setPublishResultOpen(true)
+      showPublishSuccessMessage(`${h5BaseUrl}/p/${publishedWork.uuid}`)
     } catch (error) {
       setSaveStatus('error')
+      message.error(getRequestErrorMessage(error))
+    }
+  }
+
+  const handlePublishTemplate = async () => {
+    if (!hasMeaningfulWorkTitle(workMeta.title)) {
+      setSettingsPreviewMode('share')
+      message.warning('发布为模板前请先填写作品标题')
+      return
+    }
+
+    try {
+      const savedWork = await saveCurrentWork({ silent: true })
+      const templateWork = await updateTemplateMutation.mutateAsync({
+        id: savedWork.uuid,
+        payload: templateSettings,
+      })
+
+      setCurrentWork(templateWork)
+      message.success('已发布为模板')
+    } catch (error) {
+      setSaveStatus('error')
+      message.error(getRequestErrorMessage(error))
+    }
+  }
+
+  const handleCreateChannel = async () => {
+    if (!currentWork) {
+      message.warning('请先保存或发布作品')
+      return
+    }
+
+    const name = channelName.trim()
+    if (!name) {
+      message.warning('请输入渠道名称')
+      return
+    }
+
+    try {
+      const nextWork = await createChannelMutation.mutateAsync({
+        id: currentWork.uuid,
+        name,
+      })
+      setCurrentWork(nextWork)
+      setChannelName('')
+      message.success('渠道已创建')
+    } catch (error) {
+      message.error(getRequestErrorMessage(error))
+    }
+  }
+
+  const handleDeleteChannel = async (channelId: string) => {
+    if (!currentWork) {
+      return
+    }
+
+    try {
+      const nextWork = await deleteChannelMutation.mutateAsync({
+        id: currentWork.uuid,
+        channelId,
+      })
+      setCurrentWork(nextWork)
+      message.success('渠道已删除')
+    } catch (error) {
       message.error(getRequestErrorMessage(error))
     }
   }
@@ -518,17 +658,13 @@ function EditorPage() {
                   <Button
                     icon={<Settings2 size={14} />}
                     size="small"
-                    onClick={() => setMetaModalOpen(true)}
+                    type={settingsDrawerOpen ? 'primary' : 'default'}
+                    onClick={() => {
+                      setSettingsDrawerOpen(true)
+                      setPreviewMode(true)
+                    }}
                   >
-                    作品设置
-                  </Button>
-                  <Button
-                    icon={<Eye size={14} />}
-                    size="small"
-                    type={previewMode ? 'primary' : 'default'}
-                    onClick={() => setPreviewMode((mode) => !mode)}
-                  >
-                    {previewMode ? '退出预览' : '预览'}
+                    预览和设置
                   </Button>
                   <Button
                     loading={saveStatus === 'saving'}
@@ -640,10 +776,53 @@ function EditorPage() {
             className="editor-floating-preview"
             onClick={(event) => event.stopPropagation()}
           >
-            <H5PreviewRenderer content={previewContent} />
+            {settingsPreviewMode === 'share' ? (
+              <SharePreviewCard value={workMeta} />
+            ) : (
+              <H5PreviewRenderer content={previewContent} />
+            )}
           </div>
         ) : null}
       </Layout>
+      <PublishSettingsDrawer
+        channelName={channelName}
+        currentWork={currentWork}
+        loading={
+          saving ||
+          updateTemplateMutation.isPending ||
+          createChannelMutation.isPending ||
+          deleteChannelMutation.isPending
+        }
+        open={settingsDrawerOpen}
+        previewMode={settingsPreviewMode}
+        saveStatus={saveStatus}
+        templateSettings={templateSettings}
+        value={workMeta}
+        onCancel={() => setSettingsDrawerOpen(false)}
+        onChannelNameChange={setChannelName}
+        onCreateChannel={handleCreateChannel}
+        onDeleteChannel={handleDeleteChannel}
+        onPreviewModeChange={setSettingsPreviewMode}
+        onPublish={handlePublish}
+        onPublishTemplate={handlePublishTemplate}
+        onSave={handleSave}
+        onTemplateSettingsChange={setTemplateSettings}
+        onValueChange={(nextValue) => {
+          setSettingsPreviewMode('share')
+          setWorkMeta(nextValue)
+        }}
+      />
+      <PublishResultModal
+        channels={currentWork?.channels ?? []}
+        open={publishResultOpen}
+        workUuid={currentWork?.uuid ?? workId ?? ''}
+        onCancel={() => setPublishResultOpen(false)}
+        onChannelNameChange={setChannelName}
+        onCreateChannel={handleCreateChannel}
+        onDeleteChannel={handleDeleteChannel}
+        channelName={channelName}
+        loading={createChannelMutation.isPending || deleteChannelMutation.isPending}
+      />
       <WorkMetaModal
         open={metaModalOpen}
         pendingSave={pendingSave}
@@ -727,6 +906,327 @@ function WorkMetaModal({
         </Form.Item>
       </Form>
     </Modal>
+  )
+}
+
+interface PublishSettingsDrawerProps {
+  channelName: string
+  currentWork: Work | null
+  loading: boolean
+  open: boolean
+  previewMode: 'page' | 'share'
+  saveStatus: SaveStatus
+  templateSettings: typeof defaultTemplateSettings
+  value: typeof defaultWorkMeta
+  onCancel: () => void
+  onChannelNameChange: (value: string) => void
+  onCreateChannel: () => void
+  onDeleteChannel: (channelId: string) => void
+  onPreviewModeChange: (mode: 'page' | 'share') => void
+  onPublish: () => void
+  onPublishTemplate: () => void
+  onSave: () => void
+  onTemplateSettingsChange: (value: typeof defaultTemplateSettings) => void
+  onValueChange: (value: typeof defaultWorkMeta) => void
+}
+
+function PublishSettingsDrawer({
+  channelName,
+  currentWork,
+  loading,
+  onCancel,
+  onChannelNameChange,
+  onCreateChannel,
+  onDeleteChannel,
+  onPreviewModeChange,
+  onPublish,
+  onPublishTemplate,
+  onSave,
+  onTemplateSettingsChange,
+  onValueChange,
+  open,
+  previewMode,
+  saveStatus,
+  templateSettings,
+  value,
+}: PublishSettingsDrawerProps) {
+  return (
+    <Drawer
+      className="publish-settings-drawer"
+      open={open}
+      title="预览和设置"
+      width={390}
+      extra={
+        <Radio.Group
+          optionType="button"
+          size="small"
+          value={previewMode}
+          options={[
+            { label: '页面', value: 'page' },
+            { label: '分享', value: 'share' },
+          ]}
+          onChange={(event) => onPreviewModeChange(event.target.value)}
+        />
+      }
+      onClose={onCancel}
+    >
+      <Space direction="vertical" size={16} className="publish-settings-stack">
+        <section className="settings-section">
+          <div className="settings-section-title">
+            <Text strong>基本信息</Text>
+            <Tag color={getSaveStatusMeta(saveStatus).color}>
+              {getSaveStatusMeta(saveStatus).label}
+            </Tag>
+          </div>
+          <Form layout="vertical" className="work-meta-form">
+            <Form.Item label="作品标题" required>
+              <Input
+                maxLength={60}
+                showCount
+                placeholder="请输入作品标题"
+                value={value.title}
+                onChange={(event) =>
+                  onValueChange({ ...value, title: event.target.value })
+                }
+              />
+            </Form.Item>
+            <Form.Item label="副标题 / 分享描述">
+              <Input.TextArea
+                autoSize={{ minRows: 3, maxRows: 5 }}
+                maxLength={160}
+                showCount
+                placeholder="会用于作品列表和分享摘要"
+                value={value.desc}
+                onChange={(event) =>
+                  onValueChange({ ...value, desc: event.target.value })
+                }
+              />
+            </Form.Item>
+            <Form.Item label="封面图片 URL">
+              <Input
+                allowClear
+                placeholder="https://example.com/cover.png"
+                value={value.coverImg}
+                onChange={(event) =>
+                  onValueChange({ ...value, coverImg: event.target.value })
+                }
+              />
+            </Form.Item>
+          </Form>
+          <Button block loading={saveStatus === 'saving'} onClick={onSave}>
+            保存
+          </Button>
+        </section>
+
+        <section className="settings-section">
+          <div className="settings-section-title">
+            <Text strong>发布为作品</Text>
+            <Text type="secondary">{currentWork ? '可管理渠道' : '保存后生成链接'}</Text>
+          </div>
+          <Button block type="primary" loading={loading} onClick={onPublish}>
+            发布作品
+          </Button>
+          <ChannelManager
+            channelName={channelName}
+            channels={currentWork?.channels ?? []}
+            disabled={!currentWork}
+            workUuid={currentWork?.uuid ?? ''}
+            onChannelNameChange={onChannelNameChange}
+            onCreateChannel={onCreateChannel}
+            onDeleteChannel={onDeleteChannel}
+          />
+        </section>
+
+        <section className="settings-section">
+          <div className="settings-section-title">
+            <Text strong>发布为模板</Text>
+            <Text type="secondary">模板链接稳定，无需渠道</Text>
+          </div>
+          <Form layout="vertical">
+            <Form.Item label="模板标签">
+              <Select
+                mode="multiple"
+                allowClear
+                placeholder="选择模板标签"
+                options={templateTagOptions}
+                value={templateSettings.templateTags}
+                onChange={(templateTags) =>
+                  onTemplateSettingsChange({
+                    ...templateSettings,
+                    templateTags,
+                  })
+                }
+              />
+            </Form.Item>
+            <Form.Item label="公开模板">
+              <Switch
+                checked={templateSettings.isPublic}
+                checkedChildren="公开"
+                unCheckedChildren="私有"
+                onChange={(isPublic) =>
+                  onTemplateSettingsChange({
+                    ...templateSettings,
+                    isPublic,
+                  })
+                }
+              />
+            </Form.Item>
+          </Form>
+          <Button block loading={loading} onClick={onPublishTemplate}>
+            发布为模板
+          </Button>
+        </section>
+      </Space>
+    </Drawer>
+  )
+}
+
+interface PublishResultModalProps {
+  channelName: string
+  channels: Work['channels']
+  loading: boolean
+  open: boolean
+  workUuid: string
+  onCancel: () => void
+  onChannelNameChange: (value: string) => void
+  onCreateChannel: () => void
+  onDeleteChannel: (channelId: string) => void
+}
+
+function PublishResultModal({
+  channelName,
+  channels,
+  loading,
+  onCancel,
+  onChannelNameChange,
+  onCreateChannel,
+  onDeleteChannel,
+  open,
+  workUuid,
+}: PublishResultModalProps) {
+  return (
+    <Modal
+      className="publish-result-modal"
+      footer={null}
+      open={open}
+      title="发布成功"
+      width={760}
+      onCancel={onCancel}
+    >
+      <div className="publish-result-layout">
+        <div className="publish-result-preview">
+          <Text strong>作品链接</Text>
+          <QRCode value={getWorkPublicUrl(workUuid)} size={132} />
+          <Input
+            readOnly
+            value={getWorkPublicUrl(workUuid)}
+            addonAfter={
+              <Button
+                size="small"
+                type="link"
+                onClick={() => copyText(getWorkPublicUrl(workUuid))}
+              >
+                复制
+              </Button>
+            }
+          />
+        </div>
+        <ChannelManager
+          channelName={channelName}
+          channels={channels}
+          disabled={!workUuid}
+          loading={loading}
+          workUuid={workUuid}
+          onChannelNameChange={onChannelNameChange}
+          onCreateChannel={onCreateChannel}
+          onDeleteChannel={onDeleteChannel}
+        />
+      </div>
+    </Modal>
+  )
+}
+
+interface ChannelManagerProps {
+  channelName: string
+  channels: Work['channels']
+  disabled?: boolean
+  loading?: boolean
+  workUuid: string
+  onChannelNameChange: (value: string) => void
+  onCreateChannel: () => void
+  onDeleteChannel: (channelId: string) => void
+}
+
+function ChannelManager({
+  channelName,
+  channels,
+  disabled = false,
+  loading = false,
+  onChannelNameChange,
+  onCreateChannel,
+  onDeleteChannel,
+  workUuid,
+}: ChannelManagerProps) {
+  return (
+    <div className="channel-manager">
+      {channels.map((channel) => {
+        const link = getChannelPublicUrl(workUuid, channel.id)
+        const deletable = channels.length > 1
+
+        return (
+          <div className="channel-row" key={channel.id}>
+            <QRCode value={link} size={68} />
+            <div className="channel-row-main">
+              <div className="channel-row-title">
+                <Text strong>{channel.name}</Text>
+                <Button size="small" type="link" onClick={() => copyText(link)}>
+                  复制链接
+                </Button>
+                <Button
+                  danger
+                  disabled={!deletable}
+                  size="small"
+                  type="link"
+                  onClick={() => onDeleteChannel(channel.id)}
+                >
+                  删除渠道
+                </Button>
+              </div>
+              <Input readOnly value={link} />
+            </div>
+          </div>
+        )
+      })}
+      <Space.Compact className="channel-create-row">
+        <Input
+          disabled={disabled}
+          placeholder="输入渠道名称"
+          value={channelName}
+          onChange={(event) => onChannelNameChange(event.target.value)}
+          onPressEnter={onCreateChannel}
+        />
+        <Button disabled={disabled} loading={loading} onClick={onCreateChannel}>
+          创建新渠道
+        </Button>
+      </Space.Compact>
+    </div>
+  )
+}
+
+function SharePreviewCard({ value }: { value: typeof defaultWorkMeta }) {
+  return (
+    <div className="share-preview-wrap">
+      <div className="share-preview-card">
+        <div className="share-preview-cover">
+          {value.coverImg ? <img src={value.coverImg} alt={value.title} /> : null}
+          {!value.coverImg ? <Share2 size={34} /> : null}
+        </div>
+        <div className="share-preview-content">
+          <Text strong>{value.title || '分享标题'}</Text>
+          <Text type="secondary">{value.desc || '分享副标题会显示在这里'}</Text>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -1264,15 +1764,7 @@ function getPageCanvasViewportStyle(
 
 function showPublishSuccessMessage(publicUrl: string) {
   const copyPublicUrl = () => {
-    if (!navigator.clipboard) {
-      message.info(publicUrl)
-      return
-    }
-
-    void navigator.clipboard
-      .writeText(publicUrl)
-      .then(() => message.success('H5 链接已复制'))
-      .catch(() => message.warning('复制失败，请手动复制链接'))
+    copyText(publicUrl)
   }
 
   message.success({
@@ -1299,6 +1791,32 @@ function showPublishSuccessMessage(publicUrl: string) {
     ),
     duration: 8,
   })
+}
+
+function getWorkPublicUrl(workUuid: string) {
+  return workUuid ? `${h5BaseUrl}/p/${workUuid}` : ''
+}
+
+function getChannelPublicUrl(workUuid: string, channelId: string) {
+  return workUuid && channelId
+    ? `${getWorkPublicUrl(workUuid)}?channel=${channelId}`
+    : ''
+}
+
+function copyText(text: string) {
+  if (!text) {
+    return
+  }
+
+  if (!navigator.clipboard) {
+    message.info(text)
+    return
+  }
+
+  void navigator.clipboard
+    .writeText(text)
+    .then(() => message.success('链接已复制'))
+    .catch(() => message.warning('复制失败，请手动复制链接'))
 }
 
 function createWorkContent(

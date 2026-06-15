@@ -5,6 +5,7 @@ import {
   PublicWorkUnavailableError,
 } from '../../../src/api'
 import { H5Renderer } from '../../../src/H5Renderer'
+import { VisitReporter } from '../../../src/VisitReporter'
 import type { PublicWorkUnavailableCode } from '../../../src/types'
 
 interface PageProps {
@@ -61,7 +62,12 @@ export default async function H5WorkPage({ params }: PageProps) {
     return <UnavailableWorkPage code={workResult.code} />
   }
 
-  return <H5Renderer content={workResult.work.publishedContent} />
+  return (
+    <>
+      <VisitReporter uuid={workResult.work.uuid} />
+      <H5Renderer content={workResult.work.publishedContent} />
+    </>
+  )
 }
 
 type WorkResult =

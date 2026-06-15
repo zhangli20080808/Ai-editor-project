@@ -13,8 +13,10 @@ import {
 import { AuthGuard } from '../auth/auth.guard'
 import { CurrentUser } from '../auth/current-user.decorator'
 import type { AuthUser } from '../users/users.service'
+import { CreateChannelDto } from './dto/create-channel.dto'
 import { CreateWorkDto } from './dto/create-work.dto'
 import { ListWorksDto } from './dto/list-works.dto'
+import { MarkTemplateDto } from './dto/mark-template.dto'
 import { UpdateWorkDto } from './dto/update-work.dto'
 import { WorksService } from './works.service'
 
@@ -63,9 +65,33 @@ export class WorksController {
   @Post(':id/template')
   markAsTemplate(
     @Param('id') id: string,
+    @Body() markTemplateDto: MarkTemplateDto,
     @CurrentUser() currentUser: AuthUser,
   ) {
-    return this.worksService.markAsTemplate(id, currentUser)
+    return this.worksService.markAsTemplate(id, currentUser, markTemplateDto)
+  }
+
+  @Post(':id/channels')
+  createChannel(
+    @Param('id') id: string,
+    @Body() createChannelDto: CreateChannelDto,
+    @CurrentUser() currentUser: AuthUser,
+  ) {
+    return this.worksService.createChannel(id, createChannelDto, currentUser)
+  }
+
+  @Delete(':id/channels/:channelId')
+  deleteChannel(
+    @Param('id') id: string,
+    @Param('channelId') channelId: string,
+    @CurrentUser() currentUser: AuthUser,
+  ) {
+    return this.worksService.deleteChannel(id, channelId, currentUser)
+  }
+
+  @Get(':id/stats')
+  getStats(@Param('id') id: string, @CurrentUser() currentUser: AuthUser) {
+    return this.worksService.getStats(id, currentUser)
   }
 
   @Delete(':id')

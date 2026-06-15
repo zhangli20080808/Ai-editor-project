@@ -1259,4 +1259,58 @@ export const learningNotes: LearningNote[] = [
     nextStep:
       '将编辑器画布也逐步切到业务组件库的 LImage 和 LButton，并补 H5 访问 URL 的复制/预览入口。',
   },
+  {
+    id: 'publish-settings-channel-stats-plan',
+    category: '实施计划',
+    title: '编辑器发布设置、渠道与统计一期方案',
+    summary:
+      '把预览、作品设置、手动保存、自动保存、发布、渠道链接和分渠道 PV 统计整合成一个完整发布工作流。',
+    background:
+      '编辑器已经具备创建、保存、发布和 H5 访问能力，但发布体验仍然分散：基本信息、预览、发布链接、渠道管理和统计没有形成运营闭环。对于营销作品来说，渠道链接必须稳定，重新发布不能丢失渠道，否则后续投放和统计无法追溯。',
+    goals: [
+      '点击“预览和设置”后，在画布上方显示实时 H5 手机预览，并在右侧打开设置抽屉。',
+      '基本信息支持标题、描述、封面图，并能切换为分享卡片预览。',
+      '手动保存和 5 秒防抖自动保存都写入服务端。',
+      '关闭或刷新页面时，如果仍有未保存、保存中或保存失败状态，要触发浏览器离开提醒。',
+      '发布为作品后展示发布结果、渠道二维码和渠道链接。',
+      '发布为模板时保存模板标签和公开设置，模板链接不依赖渠道。',
+      '作品支持默认渠道、新增渠道、删除渠道，并保证至少保留一个渠道。',
+      'H5 访问时上报 PV，作品统计页展示总 PV 和分渠道 PV。',
+    ],
+    decision:
+      '渠道属于作品级元信息，不放入 content；H5 只通过 URL 上的 channel 参数识别渠道；统计一期只做 page_view PV，不做 UV、设备、IP 去重和复杂图表。',
+    keyDesigns: [
+      'Work 新增 channels，每个渠道包含 id、name、createdAt，id 使用 uuid 并作为 URL 参数 channel 的值。',
+      '创建作品时自动生成“默认”渠道，复制作品时重新生成默认渠道。',
+      '重新发布只更新 publishedContent、status 和 latestPublishAt，不重建 channels，保证链接稳定。',
+      '新增 WorkVisit 访问日志模型，字段包含 workUuid、eventName、channel、referer 和 userAgent。',
+      '公开接口 POST /api/public/works/:uuid/visit 不需要登录，只接受已发布作品的访问上报。',
+      'GET /api/works/:id/stats 需要登录和归属校验，返回 totalPv 和各渠道 PV。',
+      '编辑器设置抽屉分为基本信息、发布为作品、发布为模板三块，降低发布操作的上下文切换。',
+      '作品列表新增统计入口，进入 /works/:workId/stats 查看分渠道数据。',
+    ],
+    implementation:
+      '计划已落地。当前已完成发布设置抽屉、分享预览、手动保存、自动保存、未保存离开提醒、渠道管理、发布结果弹层、H5 PV 上报和作品统计页。',
+    implementationDetails: [
+      'EditorPage 新增 PublishSettingsDrawer，承载基本信息、发布为作品、发布为模板和渠道管理。',
+      '编辑基本信息时自动切换到分享预览，封面、标题和副标题实时反映到分享卡片。',
+      'saveCurrentWork 支持 silent 模式，供自动保存和发布前保存复用。',
+      '监听 saveStatus，当状态为 dirty、saving 或 error 时注册 beforeunload 提醒。',
+      '新增 createWorkChannel、deleteWorkChannel、useWorkStatsQuery 等前端 API 和 React Query hooks。',
+      '后端新增 createChannel、deleteChannel、getStats 和 recordVisit 服务方法，并校验渠道重名和最少保留一个渠道。',
+      'H5 端新增 VisitReporter 客户端组件，读取 URL channel 参数并在页面挂载后上报 page_view。',
+      'WorkStatsPage 使用总览卡片和表格展示作品名称、总 PV、渠道数、渠道链接和分渠道 PV。',
+    ],
+    tests: [
+      'biz-editor-fe typecheck 和 build 通过。',
+      'biz-editor-server typecheck 和 build 通过。',
+      'h5-server typecheck 和 build 通过。',
+      '本地 API 验证登录、创建作品、发布、创建渠道、H5 访问上报和统计查询。',
+      '访问统计页 /works/:uuid/stats 能看到作品统计、默认渠道和 PV 数据。',
+      '访问 H5 链接 /p/:uuid?channel=:channelId 后，默认渠道 PV 增加。',
+      '统计接口返回纯净 channels 数据，不暴露 Mongoose 子文档内部字段。',
+    ],
+    nextStep:
+      '继续增强发布体验：补真实封面上传、渠道复制反馈、二维码下载、统计图表和更细粒度的事件埋点。',
+  },
 ]

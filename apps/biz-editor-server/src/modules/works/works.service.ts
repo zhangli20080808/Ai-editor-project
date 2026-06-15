@@ -1,15 +1,27 @@
 import { randomUUID } from 'node:crypto'
 
-import { Injectable, NotFoundException } from '@nestjs/common'
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
 import { isValidObjectId, Types, type Model } from 'mongoose'
 
 import type { AuthUser } from '../users/users.service'
+import { type CreateChannelDto } from './dto/create-channel.dto'
 import { type CreateWorkDto } from './dto/create-work.dto'
 import { type ListWorksDto } from './dto/list-works.dto'
+import { type MarkTemplateDto } from './dto/mark-template.dto'
+import { type RecordVisitDto } from './dto/record-visit.dto'
 import { type UpdateWorkDto } from './dto/update-work.dto'
 import {
+  WorkVisit,
+  type WorkVisitDocument,
+} from './schemas/work-visit.schema'
+import {
   Work,
+  type WorkChannel,
   type WorkContent,
   type WorkDocument,
   WorkStatus,
@@ -26,6 +38,8 @@ type WorkFilter = Record<string, unknown>
 export class WorksService {
   constructor(
     @InjectModel(Work.name) private readonly workModel: Model<WorkDocument>,
+    @InjectModel(WorkVisit.name)
+    private readonly workVisitModel: Model<WorkVisitDocument>,
   ) {}
 
   async create(createWorkDto: CreateWorkDto, currentUser: AuthUser) {
@@ -35,9 +49,11 @@ export class WorksService {
       desc: createWorkDto.desc ?? '',
       content: createWorkDto.content ?? defaultContent(),
       author: getAuthorName(currentUser),
+      channels: [createDefaultChannel()],
       coverImg: createWorkDto.coverImg ?? '',
       status: createWorkDto.status ?? WorkStatus.Unpublished,
       isTemplate: createWorkDto.isTemplate ?? false,
+      templateTags: createWorkDto.templateTags ?? [],
       isHot: createWorkDto.isHot ?? false,
       copiedCount: 0,
       isPublic: createWorkDto.isPublic ?? false,
@@ -97,6 +113,9 @@ export class WorksService {
     if (updateWorkDto.isTemplate !== undefined) {
       work.isTemplate = updateWorkDto.isTemplate
     }
+    if (updateWorkDto.templateTags !== undefined) {
+      work.templateTags = normalizeTemplateTags(updateWorkDto.templateTags)
+    }
     if (updateWorkDto.isHot !== undefined) work.isHot = updateWorkDto.isHot
     if (updateWorkDto.isPublic !== undefined) {
       work.isPublic = updateWorkDto.isPublic
@@ -128,9 +147,11 @@ export class WorksService {
       content: source.content,
       publishedContent: null,
       author: getAuthorName(currentUser),
+      channels: [createDefaultChannel()],
       coverImg: source.coverImg,
       status: WorkStatus.Unpublished,
       isTemplate: false,
+      templateTags: [],
       isHot: false,
       copiedCount: 0,
       isPublic: false,
@@ -143,14 +164,102 @@ export class WorksService {
     return copied.toObject()
   }
 
-  async markAsTemplate(id: string, currentUser: AuthUser) {
+  async markAsTemplate(
+    id: string,
+    currentUser: AuthUser,
+    markTemplateDto: MarkTemplateDto = {},
+  ) {
     const work = await this.findWorkByIdentity(id, currentUser)
 
     work.isTemplate = true
-    work.isPublic = true
+    work.isPublic = markTemplateDto.isPublic ?? true
+    work.templateTags = normalizeTemplateTags(markTemplateDto.templateTags ?? [])
 
     await work.save()
     return work.toObject()
+  }
+
+  async createChannel(
+    id: string,
+    createChannelDto: CreateChannelDto,
+    currentUser: AuthUser,
+  ) {
+    const work = await this.findWorkByIdentity(id, currentUser)
+    const name = createChannelDto.name.trim()
+
+    ensureWorkChannels(work)
+
+    if (!name) {
+      throw new BadRequestException('渠道名称不能为空')
+    }
+
+    if (work.channels.some((channel) => channel.name === name)) {
+      throw new BadRequestException('渠道名称不能重复')
+    }
+
+    work.channels.push({
+      id: randomUUID(),
+      name,
+      createdAt: new Date(),
+    })
+    await work.save()
+
+    return work.toObject()
+  }
+
+  async deleteChannel(
+    id: string,
+    channelId: string,
+    currentUser: AuthUser,
+  ) {
+    const work = await this.findWorkByIdentity(id, currentUser)
+
+    ensureWorkChannels(work)
+
+    if (work.channels.length <= 1) {
+      throw new BadRequestException('至少保留一个渠道')
+    }
+
+    const nextChannels = work.channels.filter(
+      (channel) => channel.id !== channelId,
+    )
+
+    if (nextChannels.length === work.channels.length) {
+      throw new NotFoundException('渠道不存在')
+    }
+
+    work.channels = nextChannels
+    await work.save()
+
+    return work.toObject()
+  }
+
+  async getStats(id: string, currentUser: AuthUser) {
+    const work = await this.findWorkByIdentity(id, currentUser)
+    ensureWorkChannels(work)
+
+    const stats = await this.workVisitModel
+      .aggregate<{ _id: string; count: number }>([
+        { $match: { workUuid: work.uuid, eventName: 'page_view' } },
+        { $group: { _id: '$channel', count: { $sum: 1 } } },
+      ])
+      .exec()
+    const channelCounts = new Map(
+      stats.map((item) => [item._id || '', item.count]),
+    )
+    const channels = work.channels.map((channel) => ({
+      id: channel.id,
+      name: channel.name,
+      createdAt: channel.createdAt,
+      pv: channelCounts.get(channel.id) ?? 0,
+    }))
+    const totalPv = stats.reduce((total, item) => total + item.count, 0)
+
+    return {
+      workUuid: work.uuid,
+      totalPv,
+      channels,
+    }
   }
 
   async softDelete(id: string, currentUser: AuthUser) {
@@ -175,7 +284,7 @@ export class WorksService {
     const work = await this.workModel
       .findOne({ uuid })
       .select(
-        'uuid title desc coverImg status publishedContent latestPublishAt updatedAt',
+        'uuid title desc coverImg channels status publishedContent latestPublishAt updatedAt',
       )
       .lean()
       .exec()
@@ -222,6 +331,36 @@ export class WorksService {
     return work
   }
 
+  async recordVisit(uuid: string, recordVisitDto: RecordVisitDto) {
+    const work = await this.workModel
+      .findOne({
+        uuid,
+        status: WorkStatus.Published,
+        publishedContent: { $ne: null },
+      })
+      .select('uuid channels')
+      .lean()
+      .exec()
+
+    if (!work) {
+      throw new NotFoundException('作品不存在或未发布')
+    }
+
+    const channel = recordVisitDto.channel?.trim() ?? ''
+    const knownChannel = work.channels?.some((item) => item.id === channel)
+    const fallbackChannel = work.channels?.[0]?.id ?? ''
+
+    await this.workVisitModel.create({
+      workUuid: uuid,
+      eventName: 'page_view',
+      channel: knownChannel ? channel : fallbackChannel,
+      referer: recordVisitDto.referer ?? '',
+      userAgent: recordVisitDto.userAgent ?? '',
+    })
+
+    return { ok: true }
+  }
+
   private async findWorkByIdentity(id: string, currentUser: AuthUser) {
     const identityFilter = isValidObjectId(id)
       ? { $or: [{ _id: id }, { uuid: id }] }
@@ -237,8 +376,35 @@ export class WorksService {
       throw new NotFoundException('作品不存在')
     }
 
+    if (!Array.isArray(work.channels) || work.channels.length === 0) {
+      work.channels = [createDefaultChannel()]
+      await work.save()
+    }
+
     return work
   }
+}
+
+function createDefaultChannel(): WorkChannel {
+  return {
+    id: randomUUID(),
+    name: '默认',
+    createdAt: new Date(),
+  }
+}
+
+function ensureWorkChannels(work: WorkDocument) {
+  if (Array.isArray(work.channels) && work.channels.length > 0) {
+    return
+  }
+
+  work.channels = [createDefaultChannel()]
+}
+
+function normalizeTemplateTags(tags: string[]) {
+  return Array.from(
+    new Set(tags.map((tag) => tag.trim()).filter(Boolean)),
+  ).slice(0, 10)
 }
 
 function getAuthorName(currentUser: AuthUser) {

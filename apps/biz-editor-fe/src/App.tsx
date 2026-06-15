@@ -15,6 +15,7 @@ import EditorPage from './pages/EditorPage'
 import LoginPage from './pages/LoginPage'
 import NotesPage from './pages/NotesPage'
 import TemplatesPage from './pages/TemplatesPage'
+import WorkStatsPage from './pages/WorkStatsPage'
 import WorksPage from './pages/WorksPage'
 import {
   logout as logoutAuth,
@@ -120,6 +121,14 @@ function App() {
           element={
             <ProtectedRoute>
               <WorksPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/works/:workId/stats"
+          element={
+            <ProtectedRoute>
+              <WorkStatsPage />
             </ProtectedRoute>
           }
         />

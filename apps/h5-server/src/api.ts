@@ -46,6 +46,26 @@ export async function getPublishedWork(uuid: string) {
   return (await response.json()) as PublishedWork
 }
 
+export async function recordWorkVisit(payload: {
+  channel?: string
+  referer?: string
+  userAgent?: string
+  uuid: string
+}) {
+  await fetch(`${apiBaseUrl}/public/works/${payload.uuid}/visit`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      channel: payload.channel,
+      referer: payload.referer,
+      userAgent: payload.userAgent,
+    }),
+    cache: 'no-store',
+  })
+}
+
 async function parseJson(response: Response) {
   try {
     return (await response.json()) as unknown

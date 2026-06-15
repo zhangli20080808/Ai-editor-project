@@ -30,11 +30,18 @@ export interface WorkContent {
   setting?: Record<string, unknown>
 }
 
+export interface WorkChannel {
+  id: string
+  name: string
+  createdAt: string
+}
+
 export interface PublishedWork {
   uuid: string
   title: string
   desc: string
   coverImg: string
+  channels: WorkChannel[]
   status: WorkStatus
   publishedContent: WorkContent
   latestPublishAt: string | null

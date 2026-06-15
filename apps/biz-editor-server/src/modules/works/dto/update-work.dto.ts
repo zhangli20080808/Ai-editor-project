@@ -1,6 +1,7 @@
 import {
   IsBoolean,
   IsEnum,
+  IsArray,
   IsObject,
   IsOptional,
   IsString,
@@ -31,6 +32,11 @@ export class UpdateWorkDto {
   @IsOptional()
   @IsBoolean()
   isTemplate?: boolean
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  templateTags?: string[]
 
   @IsOptional()
   @IsBoolean()
