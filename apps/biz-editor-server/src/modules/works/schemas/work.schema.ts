@@ -1,5 +1,8 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose'
 import mongoose, { type HydratedDocument, type Types } from 'mongoose'
+import type { WorkContent } from '@zhangli2008/ai-editor-schema' with {
+  "resolution-mode": "import"
+}
 
 export enum WorkStatus {
   Deleted = 0,
@@ -8,17 +11,19 @@ export enum WorkStatus {
   ForceOffline = 3,
 }
 
-export interface WorkContent {
-  components: unknown[]
-  props: Record<string, unknown>
-  setting?: Record<string, unknown>
-}
-
 export interface WorkChannel {
   id: string
   name: string
   createdAt: Date
 }
+
+const defaultPageSetting = () => ({
+  backgroundColor: '#ffffff',
+  backgroundImage: '',
+  backgroundRepeat: 'no-repeat',
+  backgroundSize: 'cover',
+  height: 640,
+})
 
 export type WorkDocument = HydratedDocument<Work>
 
@@ -38,7 +43,7 @@ export class Work {
 
   @Prop({
     type: mongoose.Schema.Types.Mixed,
-    default: () => ({ components: [], props: {} }),
+    default: () => ({ components: [], props: defaultPageSetting() }),
   })
   content!: WorkContent
 
@@ -76,6 +81,12 @@ export class Work {
   @Prop({ default: false, index: true })
   isTemplate!: boolean
 
+  @Prop({ default: '', trim: true, index: true })
+  sourceWorkUuid!: string
+
+  @Prop({ default: '', trim: true, index: true })
+  sourceTemplateUuid!: string
+
   @Prop({ type: [String], default: [] })
   templateTags!: string[]
 
@@ -85,6 +96,12 @@ export class Work {
   @Prop({ default: 0, min: 0 })
   copiedCount!: number
 
+  @Prop({ default: 0, min: 0, index: true })
+  viewCount!: number
+
+  @Prop({ default: 0, min: 0, index: true })
+  favoriteCount!: number
+
   @Prop({ default: false, index: true })
   isPublic!: boolean
 
@@ -93,6 +110,15 @@ export class Work {
 
   @Prop({ type: Date, default: null })
   latestPublishAt?: Date | null
+
+  @Prop({ default: '', trim: true })
+  adminOfflineReason!: string
+
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null })
+  adminOfflineBy?: Types.ObjectId | null
+
+  @Prop({ type: Date, default: null })
+  adminOfflineAt?: Date | null
 }
 
 export const WorkSchema = SchemaFactory.createForClass(Work)

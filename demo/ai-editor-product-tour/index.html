@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      @font-face {
+        font-family: "PingFang SC";
+        src: local("PingFang SC");
+      }
+      @font-face {
+        font-family: "Noto Sans SC";
+        src: local("Noto Sans SC");
+      }
+      @font-face {
+        font-family: "Microsoft YaHei";
+        src: local("Microsoft YaHei");
+      }
+      :root {
+        --ink: #070f1c;
+        --panel: #111827;
+        --paper: #f8fbff;
+        --muted: #9eabc0;
+        --orange: #ff5805;
+        --orange-soft: #ff8a5b;
+        --blue: #2f6bff;
+        --line: rgba(255, 255, 255, 0.13);
+      }
+
+      * { box-sizing: border-box; }
+      html, body {
+        width: 1920px;
+        height: 1080px;
+        margin: 0;
+        overflow: hidden;
+        background: var(--ink);
+        color: white;
+        font-family: "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background:
+          radial-gradient(circle at 18% 8%, rgba(255, 88, 5, 0.22), transparent 34%),
+          radial-gradient(circle at 84% 18%, rgba(47, 107, 255, 0.22), transparent 31%),
+          linear-gradient(145deg, #101729 0%, #070f1c 52%, #080c14 100%);
+      }
+
+      body::after {
+        content: "";
+        position: fixed;
+        inset: 0;
+        opacity: 0.18;
+        background-image:
+          linear-gradient(rgba(255,255,255,.07) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255,255,255,.07) 1px, transparent 1px);
+        background-size: 72px 72px;
+        mask-image: linear-gradient(to bottom, black, transparent 82%);
+      }
+
+      #root { position: relative; width: 1920px; height: 1080px; overflow: hidden; }
+      .clip { position: absolute; inset: 0; overflow: hidden; }
+      .scene { padding: 54px 84px 64px; }
+      .scene::before {
+        content: "";
+        position: absolute;
+        width: 760px;
+        height: 760px;
+        right: -260px;
+        bottom: -380px;
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        border-radius: 50%;
+      }
+
+      .brand {
+        position: absolute;
+        left: 84px;
+        top: 54px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        z-index: 8;
+      }
+      .brand-mark {
+        width: 40px;
+        height: 40px;
+        display: grid;
+        place-items: center;
+        border-radius: 12px;
+        background: linear-gradient(135deg, var(--orange), var(--orange-soft));
+        color: var(--ink);
+        font: 800 18px/1 Inter, sans-serif;
+        box-shadow: 0 12px 30px rgba(255, 88, 5, 0.25);
+      }
+      .brand-name { font: 700 20px/1.1 Inter, sans-serif; letter-spacing: 0.02em; }
+      .brand-sub { margin-top: 5px; color: var(--muted); font-size: 12px; letter-spacing: .08em; }
+
+      .section-head {
+        position: absolute;
+        left: 320px;
+        top: 52px;
+        width: 1516px;
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        z-index: 7;
+      }
+      .section-id { color: var(--orange-soft); font: 700 16px/1 Inter, sans-serif; letter-spacing: .22em; }
+      .section-title { margin-top: 12px; font-size: 42px; line-height: 1.1; font-weight: 800; letter-spacing: -.02em; }
+      .section-note { max-width: 640px; color: #c3cede; font-size: 19px; line-height: 1.55; text-align: right; }
+
+      .screen-card {
+        position: absolute;
+        left: 220px;
+        top: 178px;
+        width: 1480px;
+        height: 833px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        border-radius: 28px;
+        background: rgba(255, 255, 255, 0.08);
+        box-shadow: 0 42px 110px rgba(0, 0, 0, 0.48), 0 0 0 10px rgba(255,255,255,.025);
+      }
+      .screen-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+      .screen-card::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(180deg, rgba(255,255,255,.05), transparent 18%);
+      }
+
+      .focus-box {
+        position: absolute;
+        z-index: 5;
+        border: 3px solid var(--orange);
+        border-radius: 18px;
+        box-shadow: 0 0 0 8px rgba(255, 88, 5, .12), 0 10px 40px rgba(255, 88, 5, .25);
+      }
+      .focus-label {
+        position: absolute;
+        left: 0;
+        top: -48px;
+        padding: 10px 15px;
+        border-radius: 12px;
+        color: var(--ink);
+        background: var(--orange);
+        font-size: 16px;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+
+      .caption {
+        position: absolute;
+        left: 300px;
+        right: 300px;
+        bottom: 22px;
+        z-index: 20;
+        padding: 13px 24px 14px;
+        color: #f7f9fc;
+        background: rgba(3, 8, 18, .84);
+        border: 1px solid rgba(255,255,255,.16);
+        border-radius: 16px;
+        text-align: center;
+        font-size: 26px;
+        line-height: 1.45;
+        box-shadow: 0 14px 44px rgba(0,0,0,.28);
+        backdrop-filter: blur(18px);
+      }
+
+      .progress {
+        position: absolute;
+        left: 84px;
+        right: 84px;
+        bottom: 12px;
+        z-index: 30;
+        height: 3px;
+        border-radius: 999px;
+        background: rgba(255,255,255,.13);
+        overflow: hidden;
+      }
+      .progress-fill { width: 100%; height: 100%; transform-origin: left; background: linear-gradient(90deg, var(--orange), var(--blue)); }
+
+      .hook { display: grid; place-items: center; text-align: center; }
+      .hook-orbit {
+        position: absolute;
+        width: 820px;
+        height: 820px;
+        border: 1px solid rgba(255,255,255,.12);
+        border-radius: 50%;
+      }
+      .hook-orbit::before, .hook-orbit::after {
+        content: "";
+        position: absolute;
+        inset: 110px;
+        border: 1px solid rgba(47,107,255,.22);
+        border-radius: 50%;
+      }
+      .hook-orbit::after { inset: 230px; border-color: rgba(255,88,5,.3); }
+      .eyebrow { color: var(--orange-soft); font: 700 17px/1 Inter, sans-serif; letter-spacing: .28em; }
+      .hook h1 { position: relative; margin: 28px 0 20px; font-size: 92px; line-height: 1.04; letter-spacing: -.045em; }
+      .hook h1 span { color: var(--orange-soft); }
+      .hook-copy { color: #c7d0de; font-size: 26px; line-height: 1.55; }
+      .pill-row { position: relative; display: flex; gap: 14px; justify-content: center; margin-top: 42px; }
+      .pill { padding: 14px 20px; border: 1px solid rgba(255,255,255,.17); border-radius: 999px; background: rgba(255,255,255,.07); font-size: 17px; }
+      .pill.hot { border-color: rgba(255,88,5,.45); background: rgba(255,88,5,.13); color: #ffd7c6; }
+
+      .float-card {
+        position: absolute;
+        z-index: 6;
+        padding: 18px 20px;
+        border: 1px solid rgba(255,255,255,.16);
+        border-radius: 18px;
+        background: rgba(7,15,28,.9);
+        box-shadow: 0 18px 55px rgba(0,0,0,.38);
+        backdrop-filter: blur(18px);
+      }
+      .float-card strong { display: block; font-size: 19px; }
+      .float-card span { display: block; margin-top: 7px; color: var(--muted); font-size: 14px; }
+      .metric { display: flex; align-items: baseline; gap: 8px; }
+      .metric b { color: var(--orange-soft); font: 800 38px/1 Inter, sans-serif; }
+
+      .publish-layout { position: absolute; inset: 174px 84px 68px; display: grid; grid-template-columns: 1.45fr .55fr; gap: 38px; }
+      .publish-desktop, .publish-phone {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,.2);
+        border-radius: 28px;
+        background: rgba(255,255,255,.07);
+        box-shadow: 0 35px 90px rgba(0,0,0,.42);
+      }
+      .publish-desktop img { width: 100%; height: 100%; object-fit: cover; }
+      .publish-phone { background: #f5f7fb; }
+      .publish-phone img { width: 100%; height: 100%; object-fit: cover; object-position: center; }
+      .flow-arrow {
+        position: absolute;
+        left: calc(72.5% - 46px);
+        top: 50%;
+        z-index: 8;
+        width: 92px;
+        height: 92px;
+        display: grid;
+        place-items: center;
+        transform: translateY(-50%);
+        border-radius: 50%;
+        background: var(--orange);
+        color: var(--ink);
+        font-size: 38px;
+        box-shadow: 0 18px 50px rgba(255,88,5,.35);
+      }
+
+      .end { display: grid; place-items: center; text-align: center; }
+      .end h2 { margin: 20px 0 18px; font-size: 72px; letter-spacing: -.035em; }
+      .end-copy { color: #c4cfde; font-size: 25px; }
+      .chain { display: flex; align-items: center; gap: 16px; margin-top: 52px; }
+      .chain-step { min-width: 180px; padding: 19px 22px; border-radius: 18px; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.07); font-size: 18px; font-weight: 700; }
+      .chain-arrow { color: var(--orange-soft); font-size: 24px; }
+      .end-url { margin-top: 34px; color: #8faeff; font: 500 17px/1.5 Inter, sans-serif; letter-spacing: .02em; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="140" data-width="1920" data-height="1080">
+      <audio id="narration-audio" class="clip" data-start="0" data-duration="131.04" data-track-index="0" src="assets/narration.wav"></audio>
+
+      <section id="scene-hook" class="clip scene hook" data-start="0" data-duration="15" data-track-index="1">
+        <div class="hook-orbit" data-layout-ignore></div>
+        <div>
+          <div class="eyebrow">AI EDITOR · PRODUCT TOUR</div>
+          <h1>一句话，生成你的<span>营销页面</span></h1>
+          <p class="hook-copy">从需求理解，到可编辑草稿，再到检查与发布</p>
+          <div class="pill-row">
+            <span class="pill hot">AI Agent</span><span class="pill">可编辑组件</span><span class="pill">页面体检</span><span class="pill">H5 发布</span>
+          </div>
+        </div>
+        <div class="caption">如果只用一句话，就能完成一张可以编辑、检查并直接发布的营销页面，会发生什么？这是 AI Editor，一套把 AI 真正接入页面生产流程的演示项目。</div>
+      </section>
+
+      <section id="scene-home" class="clip scene" data-start="15" data-duration="16" data-track-index="1">
+        <header class="section-head"><div><div class="section-id">01 · START</div><div class="section-title">首页即 AI 入口</div></div><p class="section-note">三个高频场景直接开始，也可进入编辑器选择更多方向。</p></header>
+        <div class="screen-card"><img src="assets/01-home.png" alt="AI Editor 首页" /></div>
+        <div class="focus-box" style="left:754px;top:460px;width:330px;height:72px"><span class="focus-label">用 AI 创建页面</span></div>
+        <div class="caption">体验从首页开始。用户可以直接选择品牌宣传、商品种草或活动报名，也可以进入编辑器选择更多创作方向。这里不是展示一个聊天框，而是把 AI 放进现有作品流程。</div>
+      </section>
+
+      <section id="scene-form" class="clip scene" data-start="31" data-duration="15" data-track-index="1">
+        <header class="section-head"><div><div class="section-id">02 · BRIEF</div><div class="section-title">四项信息，描述创作目标</div></div><p class="section-note">场景示例与历史记录让第一次生成不再依赖“提示词技巧”。</p></header>
+        <div class="screen-card"><img src="assets/02-agent-form.png" alt="AI Agent 需求表单" /></div>
+        <div class="float-card" style="right:114px;top:256px"><strong>主题 · 人群 · 目标 · 调性</strong><span>结构化输入，减少来回沟通</span></div>
+        <div class="caption">在 AI 落地页 Agent 中，只需要说明活动主题、目标人群、转化目标和品牌调性。系统也提供示例和历史记录，第一次体验不需要从空白提示词开始。</div>
+      </section>
+
+      <section id="scene-draft" class="clip scene" data-start="46" data-duration="19" data-track-index="1">
+        <header class="section-head"><div><div class="section-id">03 · AGENT</div><div class="section-title">受控工具，生成候选草稿</div></div><p class="section-note">模型不输出任意代码，只映射到现有文本、图片和按钮组件。</p></header>
+        <div class="screen-card"><img src="assets/03-draft-preview.png" alt="候选页面草稿" /></div>
+        <div class="float-card" style="right:100px;top:666px"><div class="metric"><b>6</b><strong>个组件</strong></div><span>确认后才应用到画布</span></div>
+        <div class="caption">提交后，后端通过 OpenAI 兼容接口流式返回策划过程，并调用受控工具生成草稿。模型不能输出任意代码，最终只会得到文本、图片和按钮三种现有组件。草稿会先在侧边预览，确认后才替换画布。</div>
+      </section>
+
+      <section id="scene-canvas" class="clip scene" data-start="65" data-duration="12" data-track-index="1">
+        <header class="section-head"><div><div class="section-id">04 · EDIT</div><div class="section-title">应用之后，仍是完整编辑器</div></div><p class="section-note">拖动、缩放、属性设置、撤销与重做全部保留。</p></header>
+        <div class="screen-card"><img src="assets/04-editor-canvas.png" alt="可编辑画布" /></div>
+        <div class="focus-box" style="left:714px;top:426px;width:520px;height:182px"><span class="focus-label">真实组件，可继续编辑</span></div>
+        <div class="caption">应用草稿后，所有元素仍然可以拖动、缩放和修改属性。AI 不会自动保存，也不会自动发布，所以用户始终拥有最后的决定权。</div>
+      </section>
+
+      <section id="scene-copy" class="clip scene" data-start="77" data-duration="14" data-track-index="1">
+        <header class="section-head"><div><div class="section-id">05 · COPY</div><div class="section-title">文案助手，给出三个可选答案</div></div><p class="section-note">不覆盖原文，候选附带调整理由，应用后仍可撤销。</p></header>
+        <div class="screen-card"><img src="assets/06-copy-candidates.png" alt="AI 文案候选" /></div>
+        <div class="focus-box" style="right:237px;top:515px;width:326px;height:290px"><span class="focus-label">3 个候选 · 点击应用</span></div>
+        <div class="caption">选中任意文本组件，可以让文案助手生成三个候选。每条建议都附带调整理由，点击即可应用，也可以撤销。整页文案还能够统一标题、卖点和行动按钮的表达。</div>
+      </section>
+
+      <section id="scene-audit" class="clip scene" data-start="91" data-duration="16" data-track-index="1">
+        <header class="section-head"><div><div class="section-id">06 · REVIEW</div><div class="section-title">四维评分，问题定位到组件</div></div><p class="section-note">品牌一致性、信息层级、文案清晰度与 CTA 转化一次看清。</p></header>
+        <div class="screen-card"><img src="assets/07-page-audit.png" alt="AI 页面体检" /></div>
+        <div class="float-card" style="right:144px;top:364px"><div class="metric"><b>82</b><strong>综合评分</strong></div><span>4 个维度 · 4 项建议</span></div>
+        <div class="caption">完成编辑后，页面体检会从品牌一致性、信息层级、文案清晰度和转化能力四个维度给出评分，并把问题定位到具体组件。它只分析必要的文案和布局数据，不会修改画布。</div>
+      </section>
+
+      <section id="scene-publish" class="clip scene" data-start="107" data-duration="15" data-track-index="1">
+        <header class="section-head"><div><div class="section-id">07 · SHIP</div><div class="section-title">保存、发布，生成真实 H5</div></div><p class="section-note">AI 接入原有业务闭环，而不是另起一套孤立流程。</p></header>
+        <div class="publish-layout">
+          <div class="publish-desktop"><img src="assets/05-copy-assistant.png" alt="编辑器保存发布" /></div>
+          <div class="publish-phone"><img src="assets/08-published-h5.png" alt="发布后的 H5" /></div>
+          <div class="flow-arrow">→</div>
+        </div>
+        <div class="caption">确认结果后，沿用原有保存和发布流程即可生成 H5。作品、模板、历史记录和发布状态仍然属于原来的业务系统，AI 只是把从需求到初稿的时间大幅缩短。</div>
+      </section>
+
+      <section id="scene-end" class="clip scene end" data-start="122" data-duration="18" data-track-index="1">
+        <div>
+          <div class="eyebrow">COMPLETE CREATION LOOP</div>
+          <h2>AI 不是终点，而是创作起点</h2>
+          <p class="end-copy">从一句需求，到可编辑草稿，再到页面检查和正式发布。</p>
+          <div class="chain">
+            <div class="chain-step">描述需求</div><span class="chain-arrow">→</span>
+            <div class="chain-step">AI 草稿</div><span class="chain-arrow">→</span>
+            <div class="chain-step">文案精修</div><span class="chain-arrow">→</span>
+            <div class="chain-step">页面体检</div><span class="chain-arrow">→</span>
+            <div class="chain-step">发布 H5</div>
+          </div>
+          <div class="end-url">AI Editor · Local product demonstration</div>
+        </div>
+        <div class="caption">从一句需求，到可编辑草稿，再到页面检查和正式发布，这就是 AI Editor 的完整创作闭环。</div>
+      </section>
+
+      <div class="brand"><span class="brand-mark">A</span><div><div class="brand-name">AI Editor</div><div class="brand-sub">H5 MARKETING STUDIO</div></div></div>
+      <div class="progress"><div id="progress-fill" class="progress-fill"></div></div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      const scenes = [
+        ["#scene-hook", 0, 15], ["#scene-home", 15, 16], ["#scene-form", 31, 15],
+        ["#scene-draft", 46, 19], ["#scene-canvas", 65, 12], ["#scene-copy", 77, 14],
+        ["#scene-audit", 91, 16], ["#scene-publish", 107, 15], ["#scene-end", 122, 18]
+      ];
+      const mediaTargets = [
+        null, "#scene-home .screen-card", "#scene-form .screen-card", "#scene-draft .screen-card",
+        "#scene-canvas .screen-card", "#scene-copy .screen-card", "#scene-audit .screen-card",
+        "#scene-publish .publish-layout", null
+      ];
+      const focusTargets = [
+        null, "#scene-home .focus-box", "#scene-form .float-card", "#scene-draft .float-card",
+        "#scene-canvas .focus-box", "#scene-copy .focus-box", "#scene-audit .float-card",
+        "#scene-publish .flow-arrow", null
+      ];
+
+      scenes.forEach(([selector, start, duration], index) => {
+        tl.fromTo(selector, { opacity: 0 }, { opacity: 1, duration: .7, ease: "power2.out" }, start);
+        tl.from(`${selector} .section-title, ${selector} .eyebrow, ${selector} h1, ${selector} h2`,
+          { opacity: 0, y: 36, duration: .9, ease: "power3.out" }, start + .18);
+        if (mediaTargets[index]) {
+          tl.from(mediaTargets[index], { opacity: 0, scale: 1.035, y: 24, duration: 1.05, ease: "power2.out" }, start + .28);
+        }
+        if (focusTargets[index]) {
+          tl.from(focusTargets[index], { opacity: 0, scale: .94, duration: .65, ease: "back.out(1.45)" }, start + 1.15);
+        }
+        tl.from(`${selector} .caption`, { opacity: 0, y: 18, duration: .55, ease: "power2.out" }, start + .25);
+        if (index < scenes.length - 1) {
+          tl.to(selector, { opacity: 0, duration: .65, ease: "power2.in" }, start + duration - .65);
+        }
+      });
+
+      tl.from("#scene-hook .hook-orbit", { opacity: 0, scale: .72, duration: 1.4, ease: "power3.out" }, .1);
+      tl.from("#scene-hook .hook-copy", { opacity: 0, y: 20, duration: .8 }, .8);
+      tl.from("#scene-hook .pill", { opacity: 0, y: 16, stagger: .12, duration: .5, ease: "power2.out" }, 1.15);
+      tl.from("#scene-end .chain-step, #scene-end .chain-arrow", { opacity: 0, y: 20, stagger: .13, duration: .55, ease: "power2.out" }, 123.2);
+      tl.from("#scene-end .end-url", { opacity: 0, duration: .7 }, 125.2);
+      tl.fromTo("#progress-fill", { scaleX: 0 }, { scaleX: 1, duration: 140, ease: "none" }, 0);
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

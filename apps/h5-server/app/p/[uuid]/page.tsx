@@ -65,7 +65,7 @@ export default async function H5WorkPage({ params }: PageProps) {
   return (
     <>
       <VisitReporter uuid={workResult.work.uuid} />
-      <H5Renderer content={workResult.work.publishedContent} />
+      <H5Renderer content={workResult.work.publishedContent} workUuid={workResult.work.uuid} />
     </>
   )
 }

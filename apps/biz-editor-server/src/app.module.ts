@@ -6,7 +6,9 @@ import configuration, {
   type AppConfiguration,
 } from './config/configuration'
 import { AuthModule } from './modules/auth/auth.module'
+import { AiModule } from './modules/ai/ai.module'
 import { HealthModule } from './modules/health/health.module'
+import { MessagesModule } from './modules/messages/messages.module'
 import { UsersModule } from './modules/users/users.module'
 import { WorksModule } from './modules/works/works.module'
 
@@ -28,6 +30,8 @@ import { WorksModule } from './modules/works/works.module'
     HealthModule,
     UsersModule,
     AuthModule,
+    AiModule,
+    MessagesModule,
     WorksModule,
   ],
 })

@@ -12,17 +12,46 @@ import type {
   UpdateWorkPayload,
   Work,
   WorkStats,
+  FavoriteTemplateIds,
+  TemplateFavoriteResult,
 } from './types'
 
 export const worksKeys = {
   all: ['works'] as const,
   list: (params: ListWorksParams = {}) => ['works', params] as const,
   detail: (id: string) => ['work', id] as const,
+  publicTemplates: (params: ListWorksParams = {}) =>
+    ['public-templates', params] as const,
+  publicTemplateDetail: (id: string) => ['public-template', id] as const,
 }
 
 export function getWorks(params: ListWorksParams = {}) {
   return request<PageResult<Work>>('/works', {
     params: { ...params },
+  })
+}
+
+export function getPublicTemplates(params: ListWorksParams = {}) {
+  return request<PageResult<Work>>('/public/works/templates', {
+    params: { ...params },
+  })
+}
+
+export function getPublicTemplate(id: string) {
+  return request<Work>(`/public/works/templates/${id}`)
+}
+
+export function getPublicCases(params: ListWorksParams = {}) {
+  return request<PageResult<Work>>('/public/works/cases', { params: { ...params } })
+}
+
+export function getFavoriteTemplateIds() {
+  return request<FavoriteTemplateIds>('/works/templates/favorites')
+}
+
+export function setTemplateFavorite(id: string, favorite: boolean) {
+  return request<TemplateFavoriteResult>(`/works/templates/${id}/favorite`, {
+    method: favorite ? 'POST' : 'DELETE',
   })
 }
 
@@ -56,6 +85,19 @@ export function getWorkStats(id: string) {
 
 export function copyWork(id: string) {
   return request<Work>(`/works/${id}/copy`, {
+    method: 'POST',
+  })
+}
+
+export function transferWork(id: string, targetUserId: string) {
+  return request<Work>(`/works/${id}/transfer`, {
+    method: 'POST',
+    body: { targetUserId },
+  })
+}
+
+export function usePublicTemplate(id: string) {
+  return request<Work>(`/works/templates/${id}/use`, {
     method: 'POST',
   })
 }
@@ -119,6 +161,28 @@ export function useWorksQuery(params: ListWorksParams = {}) {
   })
 }
 
+export function usePublicTemplatesQuery(params: ListWorksParams = {}) {
+  return useQuery({
+    queryKey: worksKeys.publicTemplates(params),
+    queryFn: () => getPublicTemplates(params),
+  })
+}
+
+export function usePublicTemplateQuery(id?: string) {
+  return useQuery({
+    queryKey: worksKeys.publicTemplateDetail(id ?? ''),
+    queryFn: () => getPublicTemplate(id ?? ''),
+    enabled: Boolean(id),
+  })
+}
+
+export function usePublicCasesQuery(params: ListWorksParams = {}) {
+  return useQuery({
+    queryKey: ['public-cases', params],
+    queryFn: () => getPublicCases(params),
+  })
+}
+
 export function useWorkQuery(id?: string) {
   return useQuery({
     queryKey: worksKeys.detail(id ?? ''),
@@ -179,6 +243,37 @@ export function useCopyWorkMutation() {
     mutationFn: copyWork,
     onSuccess: (work) => {
       queryClient.invalidateQueries({ queryKey: worksKeys.all })
+      queryClient.setQueryData(worksKeys.detail(work.uuid), work)
+    },
+  })
+}
+
+export function useTransferWorkMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      id,
+      targetUserId,
+    }: {
+      id: string
+      targetUserId: string
+    }) => transferWork(id, targetUserId),
+    onSuccess: (work) => {
+      queryClient.invalidateQueries({ queryKey: worksKeys.all })
+      queryClient.removeQueries({ queryKey: worksKeys.detail(work.uuid) })
+    },
+  })
+}
+
+export function usePublicTemplateMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: usePublicTemplate,
+    onSuccess: (work) => {
+      queryClient.invalidateQueries({ queryKey: worksKeys.all })
+      queryClient.invalidateQueries({ queryKey: ['public-templates'] })
       queryClient.setQueryData(worksKeys.detail(work.uuid), work)
     },
   })

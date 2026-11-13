@@ -1,5 +1,13 @@
 import { Transform } from 'class-transformer'
-import { IsBoolean, IsEnum, IsInt, IsOptional, Min } from 'class-validator'
+import {
+  IsBoolean,
+  IsEnum,
+  IsInt,
+  IsIn,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator'
 
 import { WorkStatus } from '../schemas/work.schema'
 
@@ -16,6 +24,18 @@ const toOptionalNumber = ({ value }: { value: unknown }) => {
 }
 
 export class ListWorksDto {
+  @IsOptional()
+  @IsString()
+  keyword?: string
+
+  @IsOptional()
+  @IsString()
+  templateTag?: string
+
+  @IsOptional()
+  @IsIn(['latest', 'hot', 'copied'])
+  sort?: 'latest' | 'hot' | 'copied'
+
   @IsOptional()
   @Transform(toOptionalBoolean)
   @IsBoolean()

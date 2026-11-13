@@ -7,8 +7,11 @@ import {
   IsString,
   MaxLength,
 } from 'class-validator'
+import type { WorkContent } from '@zhangli2008/ai-editor-schema' with {
+  "resolution-mode": "import"
+}
 
-import { WorkStatus, type WorkContent } from '../schemas/work.schema'
+import { WorkStatus } from '../schemas/work.schema'
 
 export class UpdateWorkDto {
   @IsOptional()
@@ -27,6 +30,7 @@ export class UpdateWorkDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(1_500_000)
   coverImg?: string
 
   @IsOptional()

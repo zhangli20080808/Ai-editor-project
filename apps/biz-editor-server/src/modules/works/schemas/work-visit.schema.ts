@@ -17,6 +17,15 @@ export class WorkVisit {
   @Prop({ default: '', index: true })
   channel!: string
 
+  @Prop({ default: '', index: true })
+  componentId!: string
+
+  @Prop({ default: '' })
+  componentName!: string
+
+  @Prop({ default: '' })
+  componentLabel!: string
+
   @Prop({ default: '' })
   referer!: string
 
@@ -27,3 +36,4 @@ export class WorkVisit {
 export const WorkVisitSchema = SchemaFactory.createForClass(WorkVisit)
 
 WorkVisitSchema.index({ workUuid: 1, channel: 1, createdAt: -1 })
+WorkVisitSchema.index({ workUuid: 1, eventName: 1, componentId: 1, createdAt: -1 })

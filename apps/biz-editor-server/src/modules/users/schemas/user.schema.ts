@@ -15,6 +15,16 @@ export enum OauthProvider {
   Weixin = 'weixin',
 }
 
+export enum UserRole {
+  User = 'user',
+  Admin = 'admin',
+}
+
+export enum UserStatus {
+  Active = 'active',
+  Frozen = 'frozen',
+}
+
 @Schema({
   collection: 'users',
   timestamps: true,
@@ -54,6 +64,26 @@ export class User {
 
   @Prop({ default: '', trim: true })
   oauthID!: string
+
+  @Prop({
+    default: UserRole.User,
+    enum: Object.values(UserRole),
+    index: true,
+  })
+  role!: UserRole
+
+  @Prop({
+    default: UserStatus.Active,
+    enum: Object.values(UserStatus),
+    index: true,
+  })
+  status!: UserStatus
+
+  @Prop({ default: '', trim: true })
+  frozenReason!: string
+
+  @Prop({ type: Date, default: null })
+  frozenAt?: Date | null
 }
 
 export const UserSchema = SchemaFactory.createForClass(User)

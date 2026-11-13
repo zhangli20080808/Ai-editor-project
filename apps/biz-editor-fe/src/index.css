@@ -12,6 +12,14 @@ body {
     'Segoe UI', sans-serif;
 }
 
+body:has(.market-page) {
+  min-width: 0;
+}
+
+body:has(.deployment-page) {
+  min-width: 0;
+}
+
 #root {
   min-height: 100vh;
 }

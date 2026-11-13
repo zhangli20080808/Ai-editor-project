@@ -133,6 +133,8 @@ interface EditorState {
     propKeyOrValues: string | Partial<ComponentProps>,
     value?: unknown,
   ) => void
+  applyAiCopy: (id: string, text: string) => void
+  applyAiCopyBatch: (updates: Array<{ id: string; text: string }>) => void
   updateComponentPosition: (id: string, left: number, top: number) => void
   commitComponentPosition: (
     id: string,
@@ -154,6 +156,7 @@ interface EditorState {
     id: string,
     eventType: ComponentEventAction['type'],
     value: string,
+    options?: { openInNewTab?: boolean },
   ) => void
   undo: () => void
   redo: () => void
@@ -607,6 +610,47 @@ export const useEditorStore = create<EditorState>()(
         applyComponentPropValues(component, values)
       })
     },
+    applyAiCopy: (id, text) => {
+      set((state) => {
+        const component = state.components.find((item) => item.id === id)
+        if (!component || !['l-text', 'l-button'].includes(component.name)) {
+          return
+        }
+        const patches = createComponentPropPatches(component, { text })
+        if (patches.length === 0) return
+        recordHistory(state, {
+          type: 'update',
+          label: 'AI 替换文案',
+          patches,
+          selectionBefore: state.currentElement,
+          selectionAfter: state.currentElement,
+        })
+        applyComponentPropValues(component, { text })
+      })
+    },
+    applyAiCopyBatch: (updates) => {
+      set((state) => {
+        const patches = updates.flatMap(({ id, text }) => {
+          const component = state.components.find((item) => item.id === id)
+          if (!component || !['l-text', 'l-button'].includes(component.name)) return []
+          return createComponentPropPatches(component, { text })
+        })
+        if (patches.length === 0) return
+        recordHistory(state, {
+          type: 'update',
+          label: 'AI 整页优化',
+          patches,
+          selectionBefore: state.currentElement,
+          selectionAfter: state.currentElement,
+        })
+        updates.forEach(({ id, text }) => {
+          const component = state.components.find((item) => item.id === id)
+          if (component && ['l-text', 'l-button'].includes(component.name)) {
+            applyComponentPropValues(component, { text })
+          }
+        })
+      })
+    },
     updateComponentPosition: (id, left, top) => {
       set((state) => {
         const component = state.components.find((item) => item.id === id)
@@ -711,7 +755,7 @@ export const useEditorStore = create<EditorState>()(
         state.pageSetting[key] = value
       })
     },
-    updateClickEvent: (id, eventType, value) => {
+    updateClickEvent: (id, eventType, value, options) => {
       set((state) => {
         const component = state.components.find((item) => item.id === id)
         if (!component) {
@@ -732,6 +776,7 @@ export const useEditorStore = create<EditorState>()(
             nextActions.push({
               type: 'link',
               url: value.trim(),
+              openInNewTab: Boolean(options?.openInNewTab),
             })
           }
         }

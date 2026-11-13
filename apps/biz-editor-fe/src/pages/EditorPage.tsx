@@ -36,6 +36,7 @@ import {
   Download,
   ExternalLink,
   Share2,
+  Sparkles,
 } from 'lucide-react'
 import {
   Alert,
@@ -64,9 +65,10 @@ import {
 } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { UploadProps } from 'antd'
-import { useNavigate, useParams } from 'react-router'
+import { useLocation, useNavigate, useParams } from 'react-router'
 import type {
   ComponentData,
+  ComponentEventAction,
   ComponentName,
   ComponentTemplate,
   PageSetting,
@@ -100,6 +102,10 @@ import {
 import type { Work, WorkContent } from '../api/types'
 import { getRequestErrorMessage } from '../api/error'
 import { H5PreviewRenderer } from '../components/H5PreviewRenderer'
+import { AiCopyAssistant } from '../components/AiCopyAssistant'
+import { AiGeneratorDrawer } from '../components/AiGeneratorDrawer'
+import { AiPageCopyDrawer } from '../components/AiPageCopyDrawer'
+import type { AiPageDraft, AiPageScene } from '../api/ai'
 import '../App.css'
 
 const { Content, Sider } = Layout
@@ -143,8 +149,11 @@ type SaveStatus = 'idle' | 'dirty' | 'saving' | 'saved' | 'publishing' | 'publis
 
 function EditorPage() {
   useEditorHotkeys()
+  const location = useLocation()
   const navigate = useNavigate()
   const { workId } = useParams<{ workId: string }>()
+  const navigationAiDraft = (location.state as { aiDraft?: AiPageDraft } | null)?.aiDraft
+  const requestedAiScene = getRequestedAiScene(location.search)
 
   const components = useEditorStore((state) => state.components)
   const currentElement = useEditorStore((state) => state.currentElement)
@@ -171,6 +180,8 @@ function EditorPage() {
   )
   const updateLayerName = useEditorStore((state) => state.updateLayerName)
   const updateComponent = useEditorStore((state) => state.updateComponent)
+  const applyAiCopy = useEditorStore((state) => state.applyAiCopy)
+  const applyAiCopyBatch = useEditorStore((state) => state.applyAiCopyBatch)
   const updateComponentPosition = useEditorStore(
     (state) => state.updateComponentPosition,
   )
@@ -199,6 +210,7 @@ function EditorPage() {
   const pageCanvasRef = useRef<HTMLDivElement | null>(null)
   const baselineSnapshotRef = useRef<string | null>(null)
   const shouldResetBaselineRef = useRef(false)
+  const aiDraftRequiresManualSaveRef = useRef(false)
   const [workMeta, setWorkMeta] = useState(defaultWorkMeta)
   const [currentWork, setCurrentWork] = useState<Work | null>(null)
   const [templateSettings, setTemplateSettings] = useState(
@@ -213,6 +225,8 @@ function EditorPage() {
   const [pendingSave, setPendingSave] = useState(false)
   const [pendingPublish, setPendingPublish] = useState(false)
   const [previewMode, setPreviewMode] = useState(false)
+  const [aiDrawerOpen, setAiDrawerOpen] = useState(() => Boolean(requestedAiScene))
+  const [aiPageCopyDrawerOpen, setAiPageCopyDrawerOpen] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null)
   const saving = saveStatus === 'saving' || saveStatus === 'publishing'
@@ -232,6 +246,16 @@ function EditorPage() {
   const activeComponent =
     components.find((component) => component.id === currentElement) ?? null
 
+  const applyAiCopyWithoutAutosave = (componentId: string, text: string) => {
+    aiDraftRequiresManualSaveRef.current = true
+    applyAiCopy(componentId, text)
+  }
+
+  const applyAiCopyBatchWithoutAutosave = (updates: Array<{ id: string; text: string }>) => {
+    aiDraftRequiresManualSaveRef.current = true
+    applyAiCopyBatch(updates)
+  }
+
   useEffect(() => {
     if (!workId) {
       loadedWorkIdRef.current = null
@@ -243,15 +267,28 @@ function EditorPage() {
       setSaveStatus('idle')
       setLastSavedAt(null)
       resetEditor()
+      if (navigationAiDraft) {
+        aiDraftRequiresManualSaveRef.current = true
+        loadWorkContent(navigationAiDraft.content)
+        setWorkMeta({
+          title: navigationAiDraft.title,
+          desc: navigationAiDraft.desc,
+          coverImg: '',
+        })
+        setSaveStatus('dirty')
+      }
     }
-  }, [resetEditor, workId])
+  }, [loadWorkContent, navigationAiDraft, resetEditor, workId])
 
   useEffect(() => {
     if (!workId || !workQuery.data) {
       return
     }
 
-    if (loadedWorkIdRef.current === workQuery.data.uuid) {
+    if (
+      loadedWorkIdRef.current === workQuery.data.uuid &&
+      useEditorStore.getState().components.length > 0
+    ) {
       return
     }
 
@@ -271,6 +308,7 @@ function EditorPage() {
     })
     setSaveStatus('saved')
     setLastSavedAt(workQuery.data.updatedAt)
+    aiDraftRequiresManualSaveRef.current = false
     shouldResetBaselineRef.current = true
     loadedWorkIdRef.current = workQuery.data.uuid
   }, [loadWorkContent, workId, workQuery.data])
@@ -282,6 +320,10 @@ function EditorPage() {
   }, [workQuery.error])
 
   useEffect(() => {
+    if (workId && loadedWorkIdRef.current !== workId) {
+      return
+    }
+
     if (shouldResetBaselineRef.current) {
       baselineSnapshotRef.current = currentWorkSnapshot
       shouldResetBaselineRef.current = false
@@ -293,14 +335,21 @@ function EditorPage() {
       return
     }
 
+    if (currentWorkSnapshot === baselineSnapshotRef.current) {
+      aiDraftRequiresManualSaveRef.current = false
+      if (saveStatus === 'dirty') {
+        setSaveStatus(workId ? 'saved' : 'idle')
+      }
+      return
+    }
+
     if (
-      currentWorkSnapshot !== baselineSnapshotRef.current &&
       saveStatus !== 'saving' &&
       saveStatus !== 'publishing'
     ) {
       setSaveStatus('dirty')
     }
-  }, [currentWorkSnapshot, saveStatus])
+  }, [currentWorkSnapshot, saveStatus, workId])
 
   useEffect(() => {
     const shouldWarn =
@@ -322,7 +371,12 @@ function EditorPage() {
   }, [saveStatus])
 
   useEffect(() => {
-    if (saveStatus !== 'dirty' || !hasMeaningfulWorkTitle(workMeta.title)) {
+    if (
+      saveStatus !== 'dirty' ||
+      (workId && loadedWorkIdRef.current !== workId) ||
+      aiDraftRequiresManualSaveRef.current ||
+      !hasMeaningfulWorkTitle(workMeta.title)
+    ) {
       return
     }
 
@@ -331,17 +385,17 @@ function EditorPage() {
     }, 5000)
 
     return () => window.clearTimeout(autosaveTimer)
-  }, [currentWorkSnapshot, saveStatus, workMeta.title])
+  }, [currentWorkSnapshot, saveStatus, workId, workMeta.title])
 
   const saveCurrentWork = async (options: { silent?: boolean } = {}) => {
+    aiDraftRequiresManualSaveRef.current = false
+    setSaveStatus('saving')
     const content = createWorkContent(components, pageSetting)
     const metaPayload = await createWorkMetaWithCover(
       workMeta,
       pageCanvasRef.current,
     )
     setWorkMeta(metaPayload)
-    setSaveStatus('saving')
-
     if (workId) {
       const savedWork = await updateWorkMutation.mutateAsync({
         id: workId,
@@ -393,6 +447,25 @@ function EditorPage() {
     }
   }
 
+  const handleApplyAiDraft = (draft: AiPageDraft, mode: 'new' | 'replace') => {
+    if (mode === 'new' && workId) {
+      setAiDrawerOpen(false)
+      navigate('/editor', { state: { aiDraft: draft } })
+      message.success('已在新作品中加载 AI 草稿，请确认后保存或发布')
+      return
+    }
+    aiDraftRequiresManualSaveRef.current = true
+    loadWorkContent(draft.content)
+    setWorkMeta((value) => ({
+      ...value,
+      title: draft.title,
+      desc: draft.desc,
+    }))
+    setSaveStatus('dirty')
+    setAiDrawerOpen(false)
+    message.success('AI 草稿已应用到画布，请确认后保存或发布')
+  }
+
   const handlePublish = async () => {
     if (!hasMeaningfulWorkTitle(workMeta.title)) {
       setPendingSave(false)
@@ -406,9 +479,15 @@ function EditorPage() {
       const savedWork = await saveCurrentWork()
       setSaveStatus('publishing')
       const publishedWork = await publishWorkMutation.mutateAsync(savedWork.uuid)
+      const publishedFromTemplate = publishedWork.uuid !== savedWork.uuid
       setCurrentWork(publishedWork)
       setSaveStatus('published')
       setLastSavedAt(new Date().toISOString())
+      if (publishedFromTemplate) {
+        loadedWorkIdRef.current = publishedWork.uuid
+        navigate(`/editor/${publishedWork.uuid}`, { replace: true })
+        message.success('模板已发布为独立作品，可在我的作品中查看')
+      }
       setPublishResultOpen(true)
       showPublishSuccessMessage(`${h5BaseUrl}/p/${publishedWork.uuid}`)
     } catch (error) {
@@ -431,8 +510,13 @@ function EditorPage() {
         payload: templateSettings,
       })
 
-      setCurrentWork(templateWork)
-      message.success('已发布为模板')
+      if (savedWork.isTemplate) {
+        setCurrentWork(templateWork)
+        message.success('模板已重新发布')
+      } else {
+        setCurrentWork(savedWork)
+        message.success('模板副本已发布，原作品仍保留在我的作品中')
+      }
     } catch (error) {
       setSaveStatus('error')
       message.error(getRequestErrorMessage(error))
@@ -584,22 +668,22 @@ function EditorPage() {
 
         <Content className="canvas-region">
             <div className="canvas-toolbar">
-              <div>
+              <div className="canvas-toolbar-info">
                 <Space size={8} className="work-heading">
                   <Text strong>{workMeta.title || '未设置标题'}</Text>
                   <Tag color={getSaveStatusMeta(saveStatus).color}>
                     {getSaveStatusMeta(saveStatus).label}
                   </Tag>
                 </Space>
-                <Text type="secondary" className="muted-text">
-                  {workId
-                    ? `正在编辑：${workId}`
-                    : '新建作品'}
-                  {lastSavedAt ? ` · ${formatSaveTime(lastSavedAt)}` : ''}
-                </Text>
+                <Tooltip title={workId ? `作品 ID：${workId}` : undefined}>
+                  <Text type="secondary" className="canvas-work-context">
+                    {workId ? `作品 ${formatCompactWorkId(workId)}` : '新建作品'}
+                    {lastSavedAt ? ` · ${formatSaveTime(lastSavedAt)}` : ''}
+                  </Text>
+                </Tooltip>
               </div>
               <Space size={12} className="canvas-toolbar-actions">
-                <Text type="secondary">{components.length} 个组件</Text>
+                <Text type="secondary" className="toolbar-component-count">{components.length} 个组件</Text>
                 <Space size={4} className="canvas-zoom-controls">
                   <Tooltip title="缩小画布">
                     <Button
@@ -673,17 +757,48 @@ function EditorPage() {
                 </Popover>
                 </Space>
                 <Space size={6}>
-                  <Button
-                    icon={<Settings2 size={14} />}
-                    size="small"
-                    type={settingsDrawerOpen ? 'primary' : 'default'}
-                    onClick={() => {
-                      setSettingsDrawerOpen(true)
-                      setPreviewMode(true)
-                    }}
-                  >
-                    预览和设置
-                  </Button>
+                  <Tooltip title="AI 生成页面">
+                    <Button
+                      aria-label="AI 生成页面"
+                      icon={<Sparkles size={14} />}
+                      size="small"
+                      type={aiDrawerOpen ? 'primary' : 'default'}
+                      onClick={() => {
+                        setAiPageCopyDrawerOpen(false)
+                        setAiDrawerOpen(true)
+                      }}
+                    >
+                      <span className="toolbar-action-label">AI 生成</span>
+                    </Button>
+                  </Tooltip>
+                  <Tooltip title="AI 页面优化：整页文案与页面体检">
+                    <Button
+                      aria-label="AI 页面优化"
+                      icon={<Sparkles size={14} />}
+                      size="small"
+                      type={aiPageCopyDrawerOpen ? 'primary' : 'default'}
+                      onClick={() => {
+                        setAiDrawerOpen(false)
+                        setAiPageCopyDrawerOpen(true)
+                      }}
+                    >
+                      <span className="toolbar-action-label">AI 页面优化</span>
+                    </Button>
+                  </Tooltip>
+                  <Tooltip title="预览和页面设置">
+                    <Button
+                      aria-label="预览和页面设置"
+                      icon={<Settings2 size={14} />}
+                      size="small"
+                      type={settingsDrawerOpen ? 'primary' : 'default'}
+                      onClick={() => {
+                        setSettingsDrawerOpen(true)
+                        setPreviewMode(true)
+                      }}
+                    >
+                      <span className="toolbar-action-label">预览和设置</span>
+                    </Button>
+                  </Tooltip>
                   <Button
                     loading={saveStatus === 'saving'}
                     size="small"
@@ -769,15 +884,17 @@ function EditorPage() {
               activeComponent={activeComponent}
               components={components}
               currentElement={currentElement}
+              pageTitle={workMeta.title}
               pageSetting={pageSetting}
+              onApplyAiCopy={applyAiCopyWithoutAutosave}
               onChange={(propKey, value) => {
                 if (activeComponent) {
                   updateComponent(activeComponent.id, propKey, value)
                 }
               }}
-              onEventChange={(eventType, value) => {
+              onEventChange={(eventType, value, options) => {
                 if (activeComponent) {
-                  updateClickEvent(activeComponent.id, eventType, value)
+                  updateClickEvent(activeComponent.id, eventType, value, options)
                 }
               }}
               onRemove={removeComponent}
@@ -856,8 +973,37 @@ function EditorPage() {
         }}
         onOk={handleMetaModalOk}
       />
+      <AiGeneratorDrawer
+        currentContent={previewContent}
+        hasCurrentWork={Boolean(workId)}
+        initialScene={requestedAiScene ?? 'brand'}
+        open={aiDrawerOpen}
+        onApply={handleApplyAiDraft}
+        onClose={() => setAiDrawerOpen(false)}
+      />
+      <AiPageCopyDrawer
+        components={components}
+        open={aiPageCopyDrawerOpen}
+        pageDescription={workMeta.desc}
+        pageSetting={pageSetting}
+        pageTitle={workMeta.title}
+        onApplyAll={applyAiCopyBatchWithoutAutosave}
+        onApplyOne={applyAiCopyWithoutAutosave}
+        onClose={() => setAiPageCopyDrawerOpen(false)}
+        onLocateComponent={(id) => {
+          selectComponent(id)
+          setAiPageCopyDrawerOpen(false)
+        }}
+      />
     </Content>
   )
+}
+
+function getRequestedAiScene(search: string): AiPageScene | null {
+  const scene = new URLSearchParams(search).get('ai')
+  return scene === 'brand' || scene === 'product' || scene === 'signup' || scene === 'promotion' || scene === 'launch' || scene === 'recruitment' || scene === 'custom'
+    ? scene
+    : null
 }
 
 interface WorkMetaModalProps {
@@ -1914,6 +2060,10 @@ async function createWorkMetaWithCover(
 
   try {
     const coverImg = await generateCoverImage(pageCanvasElement)
+    if (coverImg.length > 1_500_000) {
+      message.warning('自动封面体积过大，本次将不保存封面')
+      return normalizedMeta
+    }
     return {
       ...normalizedMeta,
       coverImg,
@@ -1963,19 +2113,35 @@ function formatSaveTime(value: string) {
   }).format(new Date(value))}`
 }
 
+function formatCompactWorkId(value: string) {
+  return value.length > 14 ? `${value.slice(0, 8)}…${value.slice(-4)}` : value
+}
+
 interface SettingsPanelProps {
   component: ComponentData
+  pageTitle: string
+  onApplyAiCopy: (text: string) => void
   onChange: (propKey: string, value: unknown) => void
-  onEventChange: (eventType: 'track' | 'link', value: string) => void
+  onEventChange: (
+    eventType: ComponentEventAction['type'],
+    value: string,
+    options?: { openInNewTab?: boolean },
+  ) => void
 }
 
 interface RightSettingsTabsProps {
   activeComponent: ComponentData | null
   components: ComponentData[]
   currentElement: string | null
+  pageTitle: string
   pageSetting: PageSetting
+  onApplyAiCopy: (componentId: string, text: string) => void
   onChange: (propKey: string, value: unknown) => void
-  onEventChange: (eventType: 'track' | 'link', value: string) => void
+  onEventChange: (
+    eventType: ComponentEventAction['type'],
+    value: string,
+    options?: { openInNewTab?: boolean },
+  ) => void
   onRemove: (id: string) => void
   onReorder: (
     orderedIds: string[],
@@ -1995,7 +2161,9 @@ function RightSettingsTabs({
   activeComponent,
   components,
   currentElement,
+  pageTitle,
   pageSetting,
+  onApplyAiCopy,
   onChange,
   onEventChange,
   onRemove,
@@ -2016,6 +2184,8 @@ function RightSettingsTabs({
           children: activeComponent ? (
             <SettingsPanel
               component={activeComponent}
+              pageTitle={pageTitle}
+              onApplyAiCopy={(text) => onApplyAiCopy(activeComponent.id, text)}
               onChange={onChange}
               onEventChange={onEventChange}
             />
@@ -2414,8 +2584,14 @@ function getLayerLabel(component: ComponentData) {
   return String(component.layerName || component.props.label || meta.label)
 }
 
+function getDefaultTrackEventName(component: ComponentData) {
+  return `${component.name.replace(/^l-/, '')}_click`
+}
+
 function SettingsPanel({
   component,
+  pageTitle,
+  onApplyAiCopy,
   onChange,
   onEventChange,
 }: SettingsPanelProps) {
@@ -2426,6 +2602,9 @@ function SettingsPanel({
   const linkEvent = component.events?.click?.find(
     (event) => event.type === 'link',
   )
+  const trackEventName = trackEvent?.eventName ?? ''
+  const linkUrl = linkEvent?.url ?? ''
+  const linkOpenInNewTab = Boolean(linkEvent?.openInNewTab)
   const groupedSchemas = groupPropSchemas(meta.propSchema)
   const collapseItems = propGroupOptions
     .map(({ key, label }) => {
@@ -2465,24 +2644,85 @@ function SettingsPanel({
           key,
           label,
           children: (
-            <>
-              <Form.Item label="埋点事件名 eventName">
-                <Input
-                  placeholder="例如 button_click"
-                  value={trackEvent?.eventName ?? ''}
-                  onChange={(event) =>
-                    onEventChange('track', event.target.value)
-                  }
-                />
-              </Form.Item>
-              <Form.Item label="跳转链接 url">
-                <Input
-                  placeholder="https://example.com"
-                  value={linkEvent?.url ?? ''}
-                  onChange={(event) => onEventChange('link', event.target.value)}
-                />
-              </Form.Item>
-            </>
+            <div className="component-event-config">
+              <div className="component-event-card">
+                <div className="component-event-card-head">
+                  <div>
+                    <Text strong>点击埋点</Text>
+                    <Text type="secondary">记录用户点击行为，用于统计页排行。</Text>
+                  </div>
+                  <Switch
+                    checked={Boolean(trackEvent)}
+                    onChange={(checked) =>
+                      onEventChange(
+                        'track',
+                        checked ? trackEventName || getDefaultTrackEventName(component) : '',
+                      )
+                    }
+                  />
+                </div>
+                {trackEvent ? (
+                  <Form.Item label="事件名 eventName">
+                    <Input
+                      placeholder="例如 button_click"
+                      value={trackEventName}
+                      onChange={(event) =>
+                        onEventChange('track', event.target.value)
+                      }
+                    />
+                  </Form.Item>
+                ) : (
+                  <Text type="secondary">开启后，H5 点击该组件会写入组件事件统计。</Text>
+                )}
+              </div>
+
+              <div className="component-event-card">
+                <div className="component-event-card-head">
+                  <div>
+                    <Text strong>点击跳转</Text>
+                    <Text type="secondary">点击组件后打开指定链接。</Text>
+                  </div>
+                  <Switch
+                    checked={Boolean(linkEvent)}
+                    onChange={(checked) =>
+                      onEventChange(
+                        'link',
+                        checked ? linkUrl || 'https://' : '',
+                        { openInNewTab: linkOpenInNewTab },
+                      )
+                    }
+                  />
+                </div>
+                {linkEvent ? (
+                  <>
+                    <Form.Item label="跳转链接 url">
+                      <Input
+                        placeholder="https://example.com"
+                        value={linkUrl}
+                        onChange={(event) =>
+                          onEventChange('link', event.target.value, {
+                            openInNewTab: linkOpenInNewTab,
+                          })
+                        }
+                      />
+                    </Form.Item>
+                    <div className="component-event-inline-option">
+                      <Text>新窗口打开</Text>
+                      <Switch
+                        checked={linkOpenInNewTab}
+                        onChange={(checked) =>
+                          onEventChange('link', linkUrl || 'https://', {
+                            openInNewTab: checked,
+                          })
+                        }
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <Text type="secondary">可与点击埋点同时使用，先上报再跳转。</Text>
+                )}
+              </div>
+            </div>
           ),
         }
       }
@@ -2504,6 +2744,14 @@ function SettingsPanel({
 
   return (
     <Form layout="vertical" className="settings-form">
+      {['l-text', 'l-button'].includes(component.name) ? (
+        <AiCopyAssistant
+          key={component.id}
+          component={component}
+          pageTitle={pageTitle}
+          onApply={onApplyAiCopy}
+        />
+      ) : null}
       <Collapse
         className="settings-collapse"
         defaultActiveKey={defaultActivePropGroups}

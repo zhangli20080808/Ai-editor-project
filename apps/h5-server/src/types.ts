@@ -1,3 +1,11 @@
+import type {
+  ComponentData,
+  PageSetting,
+  WorkContent,
+} from '@zhangli2008/ai-editor-schema'
+
+export type { ComponentData, PageSetting, WorkContent }
+
 export const WorkStatus = {
   Deleted: 0,
   Unpublished: 1,
@@ -6,29 +14,6 @@ export const WorkStatus = {
 } as const
 
 export type WorkStatus = (typeof WorkStatus)[keyof typeof WorkStatus]
-
-export interface PageSetting {
-  backgroundColor?: string
-  backgroundImage?: string
-  backgroundRepeat?: string
-  backgroundSize?: string
-  height?: number
-}
-
-export interface ComponentData {
-  id: string
-  name: 'l-text' | 'l-image' | 'l-button'
-  props: Record<string, unknown>
-  layerName?: string
-  isHidden?: boolean
-  isLocked?: boolean
-}
-
-export interface WorkContent {
-  components: ComponentData[]
-  props: PageSetting
-  setting?: Record<string, unknown>
-}
 
 export interface WorkChannel {
   id: string

@@ -1,11 +1,30 @@
-import { Alert, Button, Card, Empty, Space, Table, Tag, Typography } from 'antd'
+import {
+  Alert,
+  Button,
+  Card,
+  Empty,
+  Progress,
+  Space,
+  Table,
+  Tag,
+  Typography,
+} from 'antd'
 import type { TableProps } from 'antd'
-import { BarChart3, ExternalLink } from 'lucide-react'
+import {
+  BarChart3,
+  ExternalLink,
+  GitBranch,
+  ListOrdered,
+  MousePointerClick,
+  RefreshCw,
+  TrendingUp,
+  Trophy,
+} from 'lucide-react'
 import { useNavigate, useParams } from 'react-router'
 
 import { getRequestErrorMessage } from '../api/error'
 import { useWorkQuery, useWorkStatsQuery } from '../api/works'
-import type { WorkStatsChannel } from '../api/types'
+import type { WorkComponentEventStat, WorkStatsChannel } from '../api/types'
 
 const { Paragraph, Text, Title } = Typography
 const h5BaseUrl =
@@ -18,6 +37,15 @@ function WorkStatsPage() {
   const workQuery = useWorkQuery(workId)
   const statsQuery = useWorkStatsQuery(workId)
   const channels = statsQuery.data?.channels ?? []
+  const topChannels = statsQuery.data?.topChannels ?? []
+  const topComponentEvents = statsQuery.data?.topComponentEvents ?? []
+  const componentEvents = statsQuery.data?.componentEvents ?? []
+  const daily = statsQuery.data?.daily ?? []
+  const totalPv = statsQuery.data?.totalPv ?? 0
+  const totalComponentClicks = statsQuery.data?.totalComponentClicks ?? 0
+  const maxDailyPv = Math.max(...daily.map((item) => item.pv), 1)
+  const bestChannel = topChannels[0]
+  const hottestInteraction = topComponentEvents[0]
 
   const columns: TableProps<WorkStatsChannel>['columns'] = [
     {
@@ -68,6 +96,31 @@ function WorkStatsPage() {
     },
   ]
 
+  const interactionColumns: TableProps<WorkComponentEventStat>['columns'] = [
+    {
+      title: '组件',
+      dataIndex: 'componentLabel',
+      render: (_, item) => (
+        <Space size={8}>
+          <Text strong>{item.componentLabel}</Text>
+          <Tag>{item.componentName}</Tag>
+        </Space>
+      ),
+    },
+    {
+      title: '事件名',
+      dataIndex: 'eventName',
+      width: 180,
+      render: (eventName: string) => <Text code>{eventName}</Text>,
+    },
+    {
+      title: '点击量',
+      dataIndex: 'count',
+      width: 120,
+      render: (count: number) => <Text strong>{count}</Text>,
+    },
+  ]
+
   return (
     <main className="workspace-page stats-page">
       <div className="stats-page-inner">
@@ -82,6 +135,7 @@ function WorkStatsPage() {
           <Space size={8}>
             <Button onClick={() => navigate('/works')}>返回作品列表</Button>
             <Button
+              icon={<RefreshCw size={15} />}
               type="primary"
               onClick={() => void statsQuery.refetch()}
             >
@@ -104,23 +158,150 @@ function WorkStatsPage() {
 
         <div className="stats-summary-grid">
           <Card className="metric-card stats-summary-card">
-            <Text type="secondary">作品</Text>
+            <div className="stats-summary-card-top">
+              <Text type="secondary">作品</Text>
+              <span className="stats-summary-icon">
+                <BarChart3 size={16} />
+              </span>
+            </div>
             <Title level={4}>{workQuery.data?.title ?? '-'}</Title>
           </Card>
           <Card className="metric-card stats-summary-card">
-            <Text type="secondary">总访问量 PV</Text>
-            <Title level={3}>{statsQuery.data?.totalPv ?? 0}</Title>
+            <div className="stats-summary-card-top">
+              <Text type="secondary">总访问量 PV</Text>
+              <span className="stats-summary-icon">
+                <MousePointerClick size={16} />
+              </span>
+            </div>
+            <Title level={3}>{totalPv}</Title>
           </Card>
           <Card className="metric-card stats-summary-card">
-            <Text type="secondary">渠道数</Text>
+            <div className="stats-summary-card-top">
+              <Text type="secondary">渠道数</Text>
+              <span className="stats-summary-icon">
+                <GitBranch size={16} />
+              </span>
+            </div>
             <Title level={3}>{channels.length}</Title>
+          </Card>
+          <Card className="metric-card stats-summary-card">
+            <div className="stats-summary-card-top">
+              <Text type="secondary">最高渠道</Text>
+              <span className="stats-summary-icon">
+                <Trophy size={16} />
+              </span>
+            </div>
+            <Title level={4}>{bestChannel?.name ?? '-'}</Title>
+          </Card>
+          <Card className="metric-card stats-summary-card">
+            <div className="stats-summary-card-top">
+              <Text type="secondary">组件点击量</Text>
+              <span className="stats-summary-icon">
+                <MousePointerClick size={16} />
+              </span>
+            </div>
+            <Title level={3}>{totalComponentClicks}</Title>
+          </Card>
+        </div>
+
+        <div className="stats-insight-grid">
+          <Card className="workspace-panel stats-chart-panel">
+            <div className="stats-section-title">
+              <div>
+                <Space size={8}>
+                  <TrendingUp size={18} />
+                  <Text strong>近 7 天访问趋势</Text>
+                </Space>
+                <Paragraph type="secondary">
+                  按自然日汇总访问量，帮助判断投放节奏和发布后的反馈。
+                </Paragraph>
+              </div>
+              <div className="stats-section-total">
+                <Text type="secondary">7 天 PV</Text>
+                <strong>{daily.reduce((sum, item) => sum + item.pv, 0)}</strong>
+              </div>
+            </div>
+            {daily.length === 0 ? (
+              <Empty
+                description="暂无访问趋势"
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+              />
+            ) : (
+              <div className="stats-bar-chart">
+                {daily.map((item) => (
+                  <div className="stats-bar-item" key={item.date}>
+                    <div className="stats-bar-value">{item.pv}</div>
+                    <div
+                      className="stats-bar"
+                      style={{
+                        height: `${Math.max((item.pv / maxDailyPv) * 120, item.pv > 0 ? 12 : 4)}px`,
+                      }}
+                    />
+                    <Text type="secondary">{formatDayLabel(item.date)}</Text>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          <Card className="workspace-panel stats-ranking-panel">
+            <div className="stats-section-title stats-section-title-compact">
+              <div>
+                <Space size={8}>
+                  <ListOrdered size={18} />
+                  <Text strong>渠道排行</Text>
+                </Space>
+                <Paragraph type="secondary">
+                  对比不同投放入口的访问贡献。
+                </Paragraph>
+              </div>
+            </div>
+            {topChannels.length === 0 ? (
+              <Empty
+                description="暂无渠道排行"
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+              />
+            ) : (
+              <div className="stats-ranking-list">
+                {topChannels.map((channel, index) => {
+                  const percent =
+                    totalPv === 0 ? 0 : Math.round((channel.pv / totalPv) * 100)
+
+                  return (
+                    <div className="stats-ranking-item" key={channel.id}>
+                      <div className="stats-ranking-head">
+                        <Space size={8}>
+                          <span className="stats-ranking-index">
+                            {index + 1}
+                          </span>
+                          <Text strong>{channel.name}</Text>
+                        </Space>
+                        <Text type="secondary">{channel.pv} PV</Text>
+                      </div>
+                      <Progress
+                        percent={percent}
+                        showInfo={false}
+                        strokeColor="#ff5a3c"
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </Card>
         </div>
 
         <Card className="workspace-panel stats-table-panel">
-          <div className="stats-table-title">
-            <BarChart3 size={18} />
-            <Text strong>分渠道统计</Text>
+          <div className="stats-section-title stats-table-heading">
+            <div>
+              <Space size={8}>
+                <BarChart3 size={18} />
+                <Text strong>分渠道统计</Text>
+              </Space>
+              <Paragraph type="secondary">
+                渠道链接可直接复制，用于微信、广告投放、社群等不同场景。
+              </Paragraph>
+            </div>
           </div>
           <Table
             columns={columns}
@@ -138,6 +319,65 @@ function WorkStatsPage() {
             rowKey="id"
           />
         </Card>
+
+        <Card className="workspace-panel stats-table-panel">
+          <div className="stats-section-title stats-table-heading">
+            <div>
+              <Space size={8}>
+                <MousePointerClick size={18} />
+                <Text strong>组件交互统计</Text>
+              </Space>
+              <Paragraph type="secondary">
+                统计 H5 端触发的组件埋点事件，查看哪些组件和动作最活跃。
+              </Paragraph>
+            </div>
+            <div className="stats-section-total">
+              <Text type="secondary">最热交互</Text>
+              <strong>
+                {hottestInteraction
+                  ? `${hottestInteraction.componentLabel} / ${hottestInteraction.eventName}`
+                  : '-'}
+              </strong>
+            </div>
+          </div>
+          {topComponentEvents.length > 0 ? (
+            <div className="stats-ranking-list">
+              {topComponentEvents.map((item, index) => (
+                <div className="stats-ranking-item" key={`${item.componentId}-${item.eventName}`}>
+                  <div className="stats-ranking-head">
+                    <Space size={8}>
+                      <span className="stats-ranking-index">{index + 1}</span>
+                      <Text strong>{item.componentLabel}</Text>
+                      <Tag>{item.componentName}</Tag>
+                    </Space>
+                    <Text type="secondary">{item.count} 次</Text>
+                  </div>
+                  <Text type="secondary">{item.eventName}</Text>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <Empty
+              description="暂无组件交互数据"
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+            />
+          )}
+          <Table
+            columns={interactionColumns}
+            dataSource={componentEvents}
+            loading={statsQuery.isLoading || workQuery.isLoading}
+            locale={{
+              emptyText: (
+                <Empty
+                  description="暂无组件事件明细"
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                />
+              ),
+            }}
+            pagination={false}
+            rowKey={(record) => `${record.componentId}-${record.eventName}`}
+          />
+        </Card>
       </div>
     </main>
   )
@@ -147,6 +387,11 @@ function getChannelPublicUrl(workUuid: string, channelId: string) {
   return workUuid && channelId
     ? `${h5BaseUrl}/p/${workUuid}?channel=${channelId}`
     : ''
+}
+
+function formatDayLabel(date: string) {
+  const [, month, day] = date.split('-')
+  return `${month}/${day}`
 }
 
 export default WorkStatsPage

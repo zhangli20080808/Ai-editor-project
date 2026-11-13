@@ -1,24 +1,20 @@
 import type { ComponentType } from 'react'
+import type {
+  ComponentData,
+  ComponentEvents,
+  ComponentEventAction,
+  ComponentName,
+  ComponentProps,
+  PageSetting,
+} from '@zhangli2008/ai-editor-schema'
 
-export type ComponentName = 'l-text' | 'l-image' | 'l-button'
-
-export interface ComponentData {
-  id: string
-  name: ComponentName
-  props: ComponentProps
-  layerName?: string
-  isHidden?: boolean
-  isLocked?: boolean
-  events?: ComponentEvents
-}
-
-export interface ComponentProps {
-  label: string
-  left: number
-  top: number
-  width: number
-  height: number
-  [key: string]: unknown
+export type {
+  ComponentData,
+  ComponentEvents,
+  ComponentEventAction,
+  ComponentName,
+  ComponentProps,
+  PageSetting,
 }
 
 export interface ComponentTemplate {
@@ -27,14 +23,6 @@ export interface ComponentTemplate {
   description: string
   props: ComponentProps
   events?: ComponentEvents
-}
-
-export interface PageSetting {
-  backgroundColor: string
-  backgroundImage: string
-  backgroundRepeat: 'no-repeat' | 'repeat' | 'repeat-x' | 'repeat-y'
-  backgroundSize: 'cover' | 'contain' | 'auto' | '100% 100%'
-  height: number
 }
 
 export interface ComponentMeta {
@@ -76,18 +64,3 @@ export interface PropSchema {
     value: string
   }>
 }
-
-export interface ComponentEvents {
-  click?: ComponentEventAction[]
-}
-
-export type ComponentEventAction =
-  | {
-      type: 'track'
-      eventName: string
-    }
-  | {
-      type: 'link'
-      url: string
-      openInNewTab?: boolean
-    }

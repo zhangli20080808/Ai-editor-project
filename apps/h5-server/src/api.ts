@@ -47,6 +47,10 @@ export async function getPublishedWork(uuid: string) {
 }
 
 export async function recordWorkVisit(payload: {
+  componentId?: string
+  componentLabel?: string
+  componentName?: string
+  eventName?: string
   channel?: string
   referer?: string
   userAgent?: string
@@ -58,6 +62,10 @@ export async function recordWorkVisit(payload: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
+      componentId: payload.componentId,
+      componentLabel: payload.componentLabel,
+      componentName: payload.componentName,
+      eventName: payload.eventName,
       channel: payload.channel,
       referer: payload.referer,
       userAgent: payload.userAgent,

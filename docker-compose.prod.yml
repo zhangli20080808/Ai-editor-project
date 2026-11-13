@@ -1,0 +1,116 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: ai-editor-prod-mongo
+    restart: unless-stopped
+    volumes:
+      - ai-editor-prod-mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  biz-editor-server:
+    build:
+      context: .
+      dockerfile: deploy/dockerfiles/biz-editor-server.Dockerfile
+    container_name: ai-editor-prod-api
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      PORT: 7001
+      MONGODB_URI: ${MONGODB_URI:-mongodb://mongo:27017/ai_editor}
+      AUTH_SECRET: ${AUTH_SECRET:-replace-with-a-long-random-secret}
+      MOCK_SMS_CODE: ${MOCK_SMS_CODE:-123456}
+      H5_BASE_URL: ${H5_PUBLIC_BASE_URL:-http://localhost:7002}
+      LLM_API_BASE_URL: ${LLM_API_BASE_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+    ports:
+      - "${API_PORT:-7001}:7001"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:7001/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  admin-server:
+    build:
+      context: .
+      dockerfile: deploy/dockerfiles/admin-server.Dockerfile
+    container_name: ai-editor-prod-admin-api
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      PORT: 7003
+      MONGODB_URI: ${MONGODB_URI:-mongodb://mongo:27017/ai_editor}
+      AUTH_SECRET: ${AUTH_SECRET:-replace-with-a-long-random-secret}
+    ports:
+      - "${ADMIN_PORT:-7003}:7003"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:7003/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  h5-server:
+    build:
+      context: .
+      dockerfile: deploy/dockerfiles/h5-server.Dockerfile
+      args:
+        NEXT_PUBLIC_H5_API_BASE_URL: ${API_PUBLIC_BASE_URL:-http://localhost:7001}/api
+    container_name: ai-editor-prod-h5
+    restart: unless-stopped
+    depends_on:
+      biz-editor-server:
+        condition: service_healthy
+    environment:
+      H5_API_BASE_URL: http://biz-editor-server:7001/api
+      NEXT_PUBLIC_H5_API_BASE_URL: ${API_PUBLIC_BASE_URL:-http://localhost:7001}/api
+      PORT: 7002
+      HOSTNAME: 0.0.0.0
+    ports:
+      - "${H5_PORT:-7002}:7002"
+
+  biz-editor-fe:
+    build:
+      context: .
+      dockerfile: deploy/dockerfiles/biz-editor-fe.Dockerfile
+      args:
+        VITE_API_BASE_URL: ${API_PUBLIC_BASE_URL:-http://localhost:7001}/api
+        VITE_H5_BASE_URL: ${H5_PUBLIC_BASE_URL:-http://localhost:7002}
+        VITE_ADMIN_FE_BASE_URL: ${ADMIN_FE_PUBLIC_BASE_URL:-http://localhost:8081}
+    container_name: ai-editor-prod-fe
+    restart: unless-stopped
+    depends_on:
+      biz-editor-server:
+        condition: service_healthy
+      h5-server:
+        condition: service_started
+    ports:
+      - "${FE_PORT:-8080}:80"
+
+  admin-fe:
+    build:
+      context: .
+      dockerfile: deploy/dockerfiles/admin-fe.Dockerfile
+      args:
+        VITE_AUTH_API_BASE_URL: ${API_PUBLIC_BASE_URL:-http://localhost:7001}/api
+        VITE_ADMIN_API_BASE_URL: ${ADMIN_API_PUBLIC_BASE_URL:-http://localhost:7003}/api
+    container_name: ai-editor-prod-admin-fe
+    restart: unless-stopped
+    depends_on:
+      biz-editor-server:
+        condition: service_healthy
+      admin-server:
+        condition: service_healthy
+    ports:
+      - "${ADMIN_FE_PORT:-8081}:80"
+
+volumes:
+  ai-editor-prod-mongo-data:

@@ -1,4 +1,10 @@
-import type { ComponentData, PageSetting } from '../editor/types'
+import type {
+  ComponentData,
+  PageSetting,
+  WorkContent,
+} from '@zhangli2008/ai-editor-schema'
+
+export type { ComponentData, PageSetting, WorkContent }
 
 export class ApiError extends Error {
   status: number
@@ -34,6 +40,27 @@ export interface AuthUser {
   nickName: string
   picture: string
   phoneNumber: string
+  role: 'user' | 'admin'
+}
+
+export type MessageType = 'system' | 'transfer'
+
+export interface AppMessage {
+  _id: string
+  user: string
+  type: MessageType
+  title: string
+  content: string
+  isRead: boolean
+  workUuid: string
+  fromUser?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface MessageListResult {
+  items: AppMessage[]
+  unreadCount: number
 }
 
 export interface LoginByPhonePayload {
@@ -50,12 +77,6 @@ export interface SendCodeResult {
 export interface AuthTokenResult {
   token: string
   user: AuthUser
-}
-
-export interface WorkContent {
-  components: ComponentData[]
-  props: PageSetting
-  setting?: Record<string, unknown>
 }
 
 export interface WorkChannel {
@@ -76,9 +97,13 @@ export interface Work {
   coverImg: string
   status: WorkStatus
   isTemplate: boolean
+  sourceWorkUuid?: string
+  sourceTemplateUuid?: string
   templateTags: string[]
   isHot: boolean
   copiedCount: number
+  viewCount: number
+  favoriteCount: number
   isPublic: boolean
   user?: string | null
   latestPublishAt: string | null
@@ -86,9 +111,21 @@ export interface Work {
   updatedAt: string
 }
 
+export interface FavoriteTemplateIds {
+  ids: string[]
+}
+
+export interface TemplateFavoriteResult {
+  favorite: boolean
+  favoriteCount: number
+}
+
 export interface ListWorksParams {
   page?: number
   pageSize?: number
+  keyword?: string
+  templateTag?: string
+  sort?: 'latest' | 'hot' | 'copied'
   status?: WorkStatus
   isTemplate?: boolean
   isHot?: boolean
@@ -110,10 +147,28 @@ export interface WorkStatsChannel extends WorkChannel {
   pv: number
 }
 
+export interface WorkStatsDailyItem {
+  date: string
+  pv: number
+}
+
+export interface WorkComponentEventStat {
+  componentId: string
+  componentLabel: string
+  componentName: string
+  count: number
+  eventName: string
+}
+
 export interface WorkStats {
   workUuid: string
   totalPv: number
+  totalComponentClicks: number
   channels: WorkStatsChannel[]
+  daily: WorkStatsDailyItem[]
+  topChannels: WorkStatsChannel[]
+  componentEvents: WorkComponentEventStat[]
+  topComponentEvents: WorkComponentEventStat[]
 }
 
 export type UpdateWorkPayload = Partial<CreateWorkPayload>

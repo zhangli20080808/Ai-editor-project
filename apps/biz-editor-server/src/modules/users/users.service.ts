@@ -1,8 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
-import { isValidObjectId, type Model } from 'mongoose'
+import { isValidObjectId, Types, type Model } from 'mongoose'
 
-import { User, type UserDocument, UserType } from './schemas/user.schema'
+import {
+  User,
+  type UserDocument,
+  UserRole,
+  UserStatus,
+  UserType,
+} from './schemas/user.schema'
 
 export interface AuthUser {
   id: string
@@ -10,6 +16,8 @@ export interface AuthUser {
   nickName: string
   picture: string
   phoneNumber: string
+  role: UserRole
+  status: UserStatus
 }
 
 @Injectable()
@@ -45,6 +53,35 @@ export class UsersService {
     return user
   }
 
+  async search(keyword: string, currentUser: AuthUser) {
+    const normalizedKeyword = keyword.trim()
+    if (!normalizedKeyword) return []
+
+    const keywordRegExp = new RegExp(escapeRegExp(normalizedKeyword), 'i')
+    const users = await this.userModel
+      .find({
+        _id: { $ne: new Types.ObjectId(currentUser.id) },
+        $or: [
+          { username: keywordRegExp },
+          { nickName: keywordRegExp },
+          { phoneNumber: keywordRegExp },
+        ],
+      })
+      .limit(10)
+      .lean()
+      .exec()
+
+    return users.map((user) => ({
+      id: String(user._id),
+      username: user.username,
+      nickName: user.nickName,
+      picture: user.picture,
+      phoneNumber: user.phoneNumber,
+      role: user.role ?? UserRole.User,
+      status: user.status ?? UserStatus.Active,
+    }))
+  }
+
   toAuthUser(user: UserDocument): AuthUser {
     return {
       id: String(user._id),
@@ -52,6 +89,12 @@ export class UsersService {
       nickName: user.nickName,
       picture: user.picture,
       phoneNumber: user.phoneNumber,
+      role: user.role ?? UserRole.User,
+      status: user.status ?? UserStatus.Active,
     }
   }
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }

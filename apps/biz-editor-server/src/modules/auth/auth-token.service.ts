@@ -5,12 +5,14 @@ import { ConfigService } from '@nestjs/config'
 
 import type { AppConfiguration } from '../../config/configuration'
 import type { AuthUser } from '../users/users.service'
+import type { UserRole } from '../users/schemas/user.schema'
 
 interface TokenPayload {
   sub: string
   username: string
   nickName: string
   phoneNumber: string
+  role?: UserRole
   iat: number
   exp: number
 }
@@ -28,6 +30,7 @@ export class AuthTokenService {
       username: user.username,
       nickName: user.nickName,
       phoneNumber: user.phoneNumber,
+      role: user.role,
       iat: now,
       exp: now + 7 * 24 * 60 * 60,
     }

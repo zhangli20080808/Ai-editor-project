@@ -1,46 +1,54 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
-import type { TableProps } from 'antd'
 import {
+  Alert,
   Button,
   Card,
   Col,
-  Alert,
+  Dropdown,
   Empty,
-  Popconfirm,
-  Radio,
+  Input,
+  Modal,
+  Pagination,
+  Popover,
+  QRCode,
   Row,
   Space,
-  Table,
+  Spin,
   Tag,
   Typography,
   message,
 } from 'antd'
+import type { MenuProps } from 'antd'
 import {
+  BarChart3,
   Copy,
+  Edit3,
   FileText,
   LayoutTemplate,
-  MonitorUp,
-  Pencil,
-  RotateCcw,
-  BarChart3,
+  MoreHorizontal,
+  Plus,
+  QrCode,
+  Search,
+  Send,
   Trash2,
 } from 'lucide-react'
 
+import { getRequestErrorMessage } from '../api/error'
 import {
   useCopyWorkMutation,
   useDeleteWorkMutation,
-  useMarkWorkAsTemplateMutation,
-  useRestoreWorkMutation,
+  useTransferWorkMutation,
   useWorksQuery,
 } from '../api/works'
-import { WorkStatus, type Work } from '../api/types'
-import { getRequestErrorMessage } from '../api/error'
+import { WorkStatus, type AuthUser, type Work } from '../api/types'
+import TransferWorkModal from '../components/TransferWorkModal'
 
 const { Paragraph, Text, Title } = Typography
 const h5BaseUrl =
   import.meta.env.VITE_H5_BASE_URL?.replace(/\/$/, '') ??
   'http://127.0.0.1:7002'
+const pageSize = 12
 
 const statusMeta: Record<WorkStatus, { color: string; label: string }> = {
   [WorkStatus.Deleted]: { color: 'default', label: '已删除' },
@@ -51,305 +59,283 @@ const statusMeta: Record<WorkStatus, { color: string; label: string }> = {
 
 function WorksPage() {
   const navigate = useNavigate()
-  const [mode, setMode] = useState<'active' | 'deleted'>('active')
-  const [actionWorkId, setActionWorkId] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const [keyword, setKeyword] = useState('')
+  const [activeWorkId, setActiveWorkId] = useState<string | null>(null)
+  const [transferWork, setTransferWork] = useState<Work | null>(null)
   const worksQuery = useWorksQuery({
-    page: 1,
-    pageSize: 20,
-    ...(mode === 'deleted' ? { status: WorkStatus.Deleted } : {}),
+    page,
+    pageSize,
+    keyword,
+    isTemplate: false,
   })
   const copyWorkMutation = useCopyWorkMutation()
-  const markWorkAsTemplateMutation = useMarkWorkAsTemplateMutation()
   const deleteWorkMutation = useDeleteWorkMutation()
-  const restoreWorkMutation = useRestoreWorkMutation()
+  const transferWorkMutation = useTransferWorkMutation()
   const works = worksQuery.data?.items ?? []
-  const metrics = getWorkMetrics(works)
-  const actionPending =
-    copyWorkMutation.isPending ||
-    markWorkAsTemplateMutation.isPending ||
-    deleteWorkMutation.isPending ||
-    restoreWorkMutation.isPending
 
-  const runWorkAction = async (
-    work: Work,
-    action: () => Promise<unknown>,
-    successMessage: string,
-  ) => {
-    setActionWorkId(work.uuid)
+  const handleCopy = async (work: Work) => {
+    setActiveWorkId(work.uuid)
     try {
-      await action()
-      message.success(successMessage)
+      const copiedWork = await copyWorkMutation.mutateAsync(work.uuid)
+      message.success('作品已复制')
+      navigate(`/editor/${copiedWork.uuid}`)
     } catch (error) {
       message.error(getRequestErrorMessage(error))
     } finally {
-      setActionWorkId(null)
+      setActiveWorkId(null)
     }
   }
 
-  const previewWork = (work: Work) => {
-    if (work.status !== WorkStatus.Published) {
-      message.info('作品发布后才可以预览线上页面')
-      return
-    }
-
-    window.open(`${h5BaseUrl}/p/${work.uuid}`, '_blank', 'noopener,noreferrer')
+  const handleDelete = (work: Work) => {
+    Modal.confirm({
+      title: '删除作品？',
+      content: '删除后的作品会进入个人回收站，可以在回收站恢复。',
+      okText: '删除',
+      okButtonProps: { danger: true },
+      cancelText: '取消',
+      onOk: async () => {
+        setActiveWorkId(work.uuid)
+        try {
+          await deleteWorkMutation.mutateAsync(work.uuid)
+          message.success('作品已删除')
+        } catch (error) {
+          message.error(getRequestErrorMessage(error))
+        } finally {
+          setActiveWorkId(null)
+        }
+      },
+    })
   }
 
-  const columns: TableProps<Work>['columns'] = [
-    {
-      title: '作品',
-      dataIndex: 'title',
-      render: (_, work) => (
-        <div className="work-title-cell">
-          <div className="work-cover-mark">
-            {work.coverImg ? (
-              <img src={work.coverImg} alt={work.title} />
-            ) : (
-              <FileText size={18} />
-            )}
-          </div>
-          <div className="work-title-text">
-            <Text strong>{work.title}</Text>
-            <Text type="secondary">{work.desc || '暂无描述'}</Text>
-          </div>
-        </div>
-      ),
-    },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      width: 120,
-      render: (status: WorkStatus) => (
-        <Tag color={statusMeta[status].color}>{statusMeta[status].label}</Tag>
-      ),
-    },
-    {
-      title: '作者',
-      dataIndex: 'author',
-      width: 120,
-    },
-    {
-      title: '复制次数',
-      dataIndex: 'copiedCount',
-      width: 110,
-    },
-    {
-      title: '更新时间',
-      dataIndex: 'updatedAt',
-      width: 180,
-      render: (value: string) => formatDate(value),
-    },
-    {
-      title: '操作',
-      key: 'actions',
-      width: mode === 'deleted' ? 140 : 470,
-      render: (_, work) =>
-        mode === 'deleted' ? (
-          <Button
-            icon={<RotateCcw size={14} />}
-            loading={actionPending && actionWorkId === work.uuid}
-            size="small"
-            type="link"
-            onClick={() =>
-              runWorkAction(
-                work,
-                () => restoreWorkMutation.mutateAsync(work.uuid),
-                '作品已恢复',
-              )
-            }
-          >
-            恢复
-          </Button>
-        ) : (
-          <Space size={6}>
-            <Button
-              icon={<Pencil size={14} />}
-              size="small"
-              type="link"
-              onClick={() => navigate(`/editor/${work.uuid}`)}
-            >
-              编辑
-            </Button>
-            <Button
-              disabled={work.status !== WorkStatus.Published}
-              icon={<MonitorUp size={14} />}
-              size="small"
-              type="link"
-              onClick={() => previewWork(work)}
-            >
-              预览
-            </Button>
-            <Button
-              icon={<BarChart3 size={14} />}
-              size="small"
-              type="link"
-              onClick={() => navigate(`/works/${work.uuid}/stats`)}
-            >
-              统计
-            </Button>
-            <Button
-              icon={<Copy size={14} />}
-              loading={actionPending && actionWorkId === work.uuid}
-              size="small"
-              type="link"
-              onClick={() =>
-                runWorkAction(
-                  work,
-                  () => copyWorkMutation.mutateAsync(work.uuid),
-                  '作品已复制',
-                )
-              }
-            >
-              复制
-            </Button>
-            <Button
-              disabled={work.isTemplate}
-              icon={<LayoutTemplate size={14} />}
-              loading={
-                markWorkAsTemplateMutation.isPending &&
-                actionWorkId === work.uuid
-              }
-              size="small"
-              type="link"
-              onClick={() =>
-                runWorkAction(
-                  work,
-                  () => markWorkAsTemplateMutation.mutateAsync(work.uuid),
-                  '已沉淀为模板',
-                )
-              }
-            >
-              {work.isTemplate ? '已是模板' : '设为模板'}
-            </Button>
-            <Popconfirm
-              title="确认删除作品？"
-              description="删除后可在已删除列表中恢复。"
-              okText="删除"
-              cancelText="取消"
-              onConfirm={() =>
-                runWorkAction(
-                  work,
-                  () => deleteWorkMutation.mutateAsync(work.uuid),
-                  '作品已删除',
-                )
-              }
-            >
-              <Button danger icon={<Trash2 size={14} />} size="small" type="link">
-                删除
-              </Button>
-            </Popconfirm>
-          </Space>
-        ),
-    },
-  ]
+  const handleTransfer = async (targetUser: AuthUser) => {
+    if (!transferWork) return
+
+    setActiveWorkId(transferWork.uuid)
+    try {
+      await transferWorkMutation.mutateAsync({
+        id: transferWork.uuid,
+        targetUserId: targetUser.id,
+      })
+      message.success('作品已转赠')
+      setTransferWork(null)
+    } catch (error) {
+      message.error(getRequestErrorMessage(error))
+    } finally {
+      setActiveWorkId(null)
+    }
+  }
 
   return (
-    <main className="workspace-page works-page">
-      <div className="works-page-inner">
-        <section className="workspace-page-header works-page-header">
+    <main className="workspace-page product-list-page">
+      <div className="product-list-inner">
+        <section className="product-list-header">
           <div>
-            <Text type="secondary">Works</Text>
-            <Title level={3}>作品管理</Title>
+            <Text type="secondary">My Works</Text>
+            <Title level={3}>我的作品</Title>
             <Paragraph type="secondary">
-              管理真实作品数据，支持编辑、复制、软删除和恢复。
+              管理自己创建或接收转赠的作品，按更新时间倒排展示。
             </Paragraph>
           </div>
-          <Radio.Group
-            className="works-mode-switch"
-            optionType="button"
-            value={mode}
-            options={[
-              { label: '正常作品', value: 'active' },
-              { label: '已删除', value: 'deleted' },
-            ]}
-            onChange={(event) => setMode(event.target.value)}
-          />
-        </section>
-        <Row gutter={12} className="works-metrics">
-          {metrics.map((metric) => (
-            <Col span={8} key={metric.label}>
-              <Card className="metric-card works-metric-card">
-                <Text type="secondary">{metric.label}</Text>
-                <Title level={3}>{metric.value}</Title>
-              </Card>
-            </Col>
-          ))}
-        </Row>
-        <Card className="workspace-panel works-table-panel">
-          <div className="works-table-header">
-            <div>
-              <Text strong>{mode === 'deleted' ? '已删除作品' : '作品列表'}</Text>
-              <Text type="secondary">
-                共 {worksQuery.data?.total ?? works.length} 条
-              </Text>
-            </div>
-            <Button type="primary" onClick={() => navigate('/editor')}>
-              创建作品
+          <Space size={8} wrap>
+            <Button icon={<Plus size={15} />} type="primary" onClick={() => navigate('/editor')}>
+              新建空白作品
             </Button>
-          </div>
-          {worksQuery.isError ? (
-            <Alert
-              className="works-error-alert"
-              message="作品列表加载失败"
-              description={getRequestErrorMessage(worksQuery.error)}
-              type="error"
-              showIcon
-              action={
-                <Button size="small" onClick={() => void worksQuery.refetch()}>
-                  重试
-                </Button>
-              }
-            />
-          ) : null}
-          <Table
-            columns={columns}
-            dataSource={works}
-            loading={worksQuery.isLoading}
-            locale={{
-              emptyText: (
-                <Empty
-                  description={
-                    mode === 'deleted' ? '暂无已删除作品' : '暂无作品数据'
-                  }
-                  image={Empty.PRESENTED_IMAGE_SIMPLE}
-                />
-              ),
+            <Button icon={<LayoutTemplate size={15} />} onClick={() => navigate('/')}>
+              使用模板创建
+            </Button>
+          </Space>
+        </section>
+
+        <Card className="product-toolbar-card">
+          <Input.Search
+            allowClear
+            enterButton="搜索"
+            placeholder="搜索作品标题、描述或作者"
+            prefix={<Search size={16} />}
+            onSearch={(value) => {
+              setPage(1)
+              setKeyword(value.trim())
             }}
-            pagination={false}
-            rowKey="uuid"
-            size="middle"
           />
         </Card>
+
+        {worksQuery.isError ? (
+          <Alert
+            className="page-error-alert"
+            message="作品列表加载失败"
+            description={getRequestErrorMessage(worksQuery.error)}
+            type="error"
+            showIcon
+            action={<Button onClick={() => void worksQuery.refetch()}>重试</Button>}
+          />
+        ) : null}
+
+        <Spin spinning={worksQuery.isLoading}>
+          {works.length > 0 ? (
+            <>
+              <Row gutter={[16, 16]} className="product-card-grid">
+                {works.map((work) => (
+                  <Col xs={24} sm={12} lg={8} xl={6} key={work.uuid}>
+                    <WorkCard
+                      active={activeWorkId === work.uuid}
+                      work={work}
+                      onCopy={handleCopy}
+                      onDelete={handleDelete}
+                      onEdit={(item) => navigate(`/editor/${item.uuid}`)}
+                      onStats={(item) => navigate(`/works/${item.uuid}/stats`)}
+                      onTransfer={setTransferWork}
+                    />
+                  </Col>
+                ))}
+              </Row>
+              <div className="product-pagination">
+                <Pagination
+                  current={page}
+                  pageSize={pageSize}
+                  showSizeChanger={false}
+                  total={worksQuery.data?.total ?? 0}
+                  onChange={setPage}
+                />
+              </div>
+            </>
+          ) : (
+            <Card className="workspace-panel empty-workspace-panel">
+              <Empty
+                description="暂无作品，创建空白作品或从模板开始"
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+              >
+                <Space>
+                  <Button type="primary" onClick={() => navigate('/editor')}>
+                    新建空白作品
+                  </Button>
+                  <Button onClick={() => navigate('/')}>使用模板创建</Button>
+                </Space>
+              </Empty>
+            </Card>
+          )}
+        </Spin>
+        <TransferWorkModal
+          confirmLoading={transferWorkMutation.isPending}
+          open={Boolean(transferWork)}
+          work={transferWork}
+          onCancel={() => setTransferWork(null)}
+          onConfirm={(targetUser) => void handleTransfer(targetUser)}
+        />
       </div>
     </main>
   )
 }
 
-function getWorkMetrics(works: Work[]) {
-  return [
+interface WorkCardProps {
+  active: boolean
+  work: Work
+  onCopy: (work: Work) => Promise<void>
+  onDelete: (work: Work) => void
+  onEdit: (work: Work) => void
+  onStats: (work: Work) => void
+  onTransfer: (work: Work) => void
+}
+
+function WorkCard({
+  active,
+  onCopy,
+  onDelete,
+  onEdit,
+  onStats,
+  onTransfer,
+  work,
+}: WorkCardProps) {
+  const isPublished = work.status === WorkStatus.Published
+  const publicUrl = `${h5BaseUrl}/p/${work.uuid}`
+  const menuItems: MenuProps['items'] = [
     {
-      label: '当前列表',
-      value: String(works.length),
+      key: 'copy',
+      icon: <Copy size={14} />,
+      label: '复制',
+      onClick: () => void onCopy(work),
     },
     {
-      label: '草稿作品',
-      value: String(
-        works.filter((work) => work.status === WorkStatus.Unpublished).length,
-      ),
+      key: 'transfer',
+      icon: <Send size={14} />,
+      label: '转赠',
+      onClick: () => onTransfer(work),
     },
     {
-      label: '已发布',
-      value: String(
-        works.filter((work) => work.status === WorkStatus.Published).length,
-      ),
+      key: 'delete',
+      danger: true,
+      icon: <Trash2 size={14} />,
+      label: '删除',
+      onClick: () => onDelete(work),
     },
   ]
+
+  return (
+    <Card className="product-work-card">
+      <div className="product-work-cover">
+        {work.coverImg ? (
+          <img src={work.coverImg} alt={work.title} />
+        ) : (
+          <FileText size={30} />
+        )}
+        <Tag color={statusMeta[work.status].color}>
+          {statusMeta[work.status].label}
+        </Tag>
+        <Dropdown menu={{ items: menuItems }} trigger={['click']}>
+          <Button
+            className="product-card-more"
+            icon={<MoreHorizontal size={16} />}
+            loading={active}
+            shape="circle"
+          />
+        </Dropdown>
+        {isPublished ? (
+          <Popover
+            content={
+              <div className="product-qr-popover">
+                <QRCode size={132} value={publicUrl} />
+                <Text type="secondary">扫码访问作品</Text>
+              </div>
+            }
+          >
+            <Button
+              className="product-card-qr"
+              icon={<QrCode size={15} />}
+              shape="circle"
+            />
+          </Popover>
+        ) : null}
+      </div>
+      <div className="product-work-body">
+        <Title level={5} ellipsis>
+          {work.title || '未命名作品'}
+        </Title>
+        <Paragraph type="secondary" ellipsis={{ rows: 2 }}>
+          {work.desc || '暂无描述'}
+        </Paragraph>
+        <div className="product-work-meta">
+          <Text type="secondary">更新 {formatDate(work.updatedAt)}</Text>
+          <Text type="secondary">复制 {work.copiedCount}</Text>
+        </div>
+        <Space className="product-work-actions" size={8}>
+          <Button block icon={<Edit3 size={14} />} onClick={() => onEdit(work)}>
+            编辑
+          </Button>
+          <Button block icon={<BarChart3 size={14} />} onClick={() => onStats(work)}>
+            统计
+          </Button>
+        </Space>
+      </div>
+    </Card>
+  )
 }
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('zh-CN', {
-    dateStyle: 'short',
-    timeStyle: 'short',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
   }).format(new Date(value))
 }
 

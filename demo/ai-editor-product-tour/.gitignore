@@ -1,0 +1,10 @@
+.tools/
+.venv/
+.thumbnails/
+.waveform-cache/
+capture/
+node_modules/
+renders/
+snapshots/
+assets/narration.aiff
+

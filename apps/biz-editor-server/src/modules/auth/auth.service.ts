@@ -1,7 +1,12 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common'
+import {
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 
 import type { AppConfiguration } from '../../config/configuration'
+import { UserStatus } from '../users/schemas/user.schema'
 import { UsersService, type AuthUser } from '../users/users.service'
 import { AuthTokenService } from './auth-token.service'
 import type { LoginByPhoneDto } from './dto/login-by-phone.dto'
@@ -32,6 +37,7 @@ export class AuthService {
       loginDto.phoneNumber,
     )
     const authUser = this.usersService.toAuthUser(user)
+    this.assertUserActive(authUser)
 
     return {
       token: this.authTokenService.sign(authUser),
@@ -42,11 +48,19 @@ export class AuthService {
   async verifyAccessToken(token: string): Promise<AuthUser> {
     const payload = this.authTokenService.verify(token)
     const user = await this.usersService.findById(payload.sub)
+    const authUser = this.usersService.toAuthUser(user)
+    this.assertUserActive(authUser)
 
-    return this.usersService.toAuthUser(user)
+    return authUser
   }
 
   private getMockSmsCode() {
     return this.configService.getOrThrow('mockSmsCode', { infer: true })
+  }
+
+  private assertUserActive(user: AuthUser) {
+    if (user.status === UserStatus.Frozen) {
+      throw new ForbiddenException('账号已被冻结，请联系管理员')
+    }
   }
 }
